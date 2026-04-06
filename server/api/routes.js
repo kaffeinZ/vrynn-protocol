@@ -7,6 +7,7 @@ import {
   getWalletsByUserId,
   removeWallet,
   getLatestPositions,
+  savePosition,
   getAlerts,
 } from '../db.js';
 
@@ -65,9 +66,36 @@ router.delete('/wallet', (req, res) => {
 
 // ── Positions ──────────────────────────────────────────────────────────────
 // GET /api/positions/:walletAddress
-router.get('/positions/:walletAddress', (req, res) => {
-  const positions = getLatestPositions(req.params.walletAddress);
-  res.json(positions);
+// Fetches live data from MarginFi, persists snapshot to DB, returns result.
+router.get('/positions/:walletAddress', async (req, res) => {
+  const { walletAddress } = req.params;
+
+  try { new PublicKey(walletAddress); } catch {
+    return res.status(400).json({ error: 'invalid Solana address' });
+  }
+
+  try {
+    const { getMarginFiPositions } = await import('../protocols/marginfi.js');
+    const positions = await getMarginFiPositions(walletAddress);
+
+    // Persist snapshot so monitor loop & alert history work offline too
+    for (const p of positions) {
+      savePosition({
+        walletAddress,
+        protocol: p.protocol,
+        collateralUsd: p.collateralUsd,
+        borrowUsd: p.borrowUsd,
+        healthFactor: p.healthFactor,
+        rawData: p,
+      });
+    }
+
+    res.json(positions);
+  } catch (err) {
+    console.error('[positions]', err.message);
+    // Fall back to cached DB snapshot on RPC errors
+    res.json(getLatestPositions(walletAddress));
+  }
 });
 
 // ── Alerts ─────────────────────────────────────────────────────────────────
