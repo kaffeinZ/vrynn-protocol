@@ -77,24 +77,32 @@ router.get('/positions/:walletAddress', async (req, res) => {
 
   try {
     const { getMarginFiPositions } = await import('../protocols/marginfi.js');
-    const positions = await getMarginFiPositions(walletAddress);
+    const { getKaminoPositions }   = await import('../protocols/kamino.js');
 
-    // Persist snapshot so monitor loop & alert history work offline too
+    const [marginfi, kamino] = await Promise.allSettled([
+      getMarginFiPositions(walletAddress),
+      getKaminoPositions(walletAddress),
+    ]);
+
+    const positions = [
+      ...(marginfi.status === 'fulfilled' ? marginfi.value : []),
+      ...(kamino.status  === 'fulfilled' ? kamino.value  : []),
+    ];
+
     for (const p of positions) {
       savePosition({
         walletAddress,
-        protocol: p.protocol,
+        protocol:      p.protocol,
         collateralUsd: p.collateralUsd,
-        borrowUsd: p.borrowUsd,
-        healthFactor: p.healthFactor,
-        rawData: p,
+        borrowUsd:     p.borrowUsd,
+        healthFactor:  p.healthFactor,
+        rawData:       p,
       });
     }
 
     res.json(positions);
   } catch (err) {
     console.error('[positions]', err.message);
-    // Fall back to cached DB snapshot on RPC errors
     res.json(getLatestPositions(walletAddress));
   }
 });

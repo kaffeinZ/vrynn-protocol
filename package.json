@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@kamino-finance/klend-sdk": "^7.3.22",
     "@mrgnlabs/marginfi-client-v2": "^6.4.1",
     "@mrgnlabs/mrgn-common": "^2.0.7",
     "@solana/web3.js": "^1.98.4",

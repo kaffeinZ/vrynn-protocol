@@ -12,6 +12,7 @@ import {
   getLastAnalysisHealthFactor,
 } from './db.js';
 import { getMarginFiPositions } from './protocols/marginfi.js';
+import { getKaminoPositions } from './protocols/kamino.js';
 import { sendAlert } from './alerts.js';
 import { analyzeRisk } from './ai.js';
 
@@ -65,12 +66,21 @@ function buildAlertMessage(position, aiAnalysis) {
 // ── Per-wallet scan ───────────────────────────────────────────────────────
 
 async function scanWallet(address) {
-  let positions;
-  try {
-    positions = await getMarginFiPositions(address);
-  } catch (err) {
-    console.error(`[monitor] scan failed for ${address.slice(0, 8)}…: ${err.message}`);
-    return;
+  const [marginfiPositions, kaminoPositions] = await Promise.allSettled([
+    getMarginFiPositions(address),
+    getKaminoPositions(address),
+  ]);
+
+  const positions = [
+    ...(marginfiPositions.status === 'fulfilled' ? marginfiPositions.value : []),
+    ...(kaminoPositions.status  === 'fulfilled' ? kaminoPositions.value  : []),
+  ];
+
+  if (marginfiPositions.status === 'rejected') {
+    console.error(`[monitor] marginfi failed for ${address.slice(0, 8)}…: ${marginfiPositions.reason?.message}`);
+  }
+  if (kaminoPositions.status === 'rejected') {
+    console.error(`[monitor] kamino failed for ${address.slice(0, 8)}…: ${kaminoPositions.reason?.message}`);
   }
 
   if (!positions.length) return;
