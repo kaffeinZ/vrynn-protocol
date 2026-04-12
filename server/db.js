@@ -58,6 +58,20 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_ai_wallet ON ai_analyses(wallet_address, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS wallet_settings (
+    wallet_address TEXT    PRIMARY KEY,
+    hf_warning     REAL    NOT NULL DEFAULT 1.5,
+    hf_critical    REAL    NOT NULL DEFAULT 1.2,
+    alerts_enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at     INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS telegram_link_codes (
+    code           TEXT    PRIMARY KEY,
+    wallet_address TEXT    NOT NULL,
+    expires_at     INTEGER NOT NULL
+  );
 `);
 
 // ── users ──────────────────────────────────────────────────────────────────
@@ -152,6 +166,56 @@ export function getLastAnalysisHealthFactor(walletAddress, protocol) {
     ORDER BY created_at DESC LIMIT 1
   `).get(walletAddress, protocol);
   return row ? row.health_factor : null;
+}
+
+// ── wallet_settings ────────────────────────────────────────────────────────
+export function getWalletSettings(walletAddress) {
+  return db.prepare(`SELECT * FROM wallet_settings WHERE wallet_address = ?`).get(walletAddress)
+    ?? { wallet_address: walletAddress, hf_warning: 1.5, hf_critical: 1.2, alerts_enabled: 1 };
+}
+
+export function upsertWalletSettings(walletAddress, { hfWarning, hfCritical, alertsEnabled }) {
+  db.prepare(`
+    INSERT INTO wallet_settings(wallet_address, hf_warning, hf_critical, alerts_enabled)
+    VALUES(?, ?, ?, ?)
+    ON CONFLICT(wallet_address) DO UPDATE SET
+      hf_warning     = excluded.hf_warning,
+      hf_critical    = excluded.hf_critical,
+      alerts_enabled = excluded.alerts_enabled,
+      updated_at     = unixepoch()
+  `).run(walletAddress, hfWarning, hfCritical, alertsEnabled ? 1 : 0);
+}
+
+// ── telegram_link_codes ────────────────────────────────────────────────────
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+
+export function createLinkCode(walletAddress) {
+  db.prepare(`DELETE FROM telegram_link_codes WHERE expires_at < unixepoch()`).run();
+
+  const code = Array.from({ length: 6 }, () =>
+    CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
+  ).join('');
+
+  const expiresAt = Math.floor(Date.now() / 1000) + 600; // 10 min TTL
+  db.prepare(`
+    INSERT OR REPLACE INTO telegram_link_codes(code, wallet_address, expires_at)
+    VALUES(?, ?, ?)
+  `).run(code, walletAddress, expiresAt);
+
+  return code;
+}
+
+export function claimLinkCode(rawCode) {
+  const code = rawCode.trim().toUpperCase();
+  const row = db.prepare(`
+    SELECT wallet_address FROM telegram_link_codes
+    WHERE code = ? AND expires_at > unixepoch()
+  `).get(code);
+
+  if (!row) return null;
+
+  db.prepare(`DELETE FROM telegram_link_codes WHERE code = ?`).run(code);
+  return row.wallet_address;
 }
 
 export default db;

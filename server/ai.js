@@ -72,8 +72,8 @@ export async function analyzeRisk(walletAddress, positions) {
       headers: {
         'Authorization': `Bearer ${config.openrouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://cheetah.app',
-        'X-Title': 'Cheetah',
+        'HTTP-Referer': 'https://cheetahfi.app',
+        'X-Title': 'CheetahFi',
       },
       body: JSON.stringify({
         model: config.aiModel,

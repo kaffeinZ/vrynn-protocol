@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
-export const SIGN_MESSAGE = 'Cheetah: verify wallet ownership';
+export const SIGN_MESSAGE = 'CheetahFi: verify wallet ownership';
 
 /**
  * Verifies a Solana wallet signature.

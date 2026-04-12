@@ -10,6 +10,9 @@ import {
   savePosition,
   getAlerts,
   getLatestAiAnalysis,
+  getWalletSettings,
+  upsertWalletSettings,
+  createLinkCode,
 } from '../db.js';
 
 const router = Router();
@@ -105,6 +108,125 @@ router.get('/positions/:walletAddress', async (req, res) => {
     console.error('[positions]', err.message);
     res.json(getLatestPositions(walletAddress));
   }
+});
+
+// ── Portfolio overview ─────────────────────────────────────────────────────
+// GET /api/portfolio/:walletAddress
+// Aggregates live positions across all protocols into a single risk snapshot.
+function computeRiskScore(worstHf) {
+  if (worstHf === null) return 0; // no debt
+  // Linear: HF 3.0 → score 0, HF 1.0 → score 100
+  return Math.max(0, Math.min(100, Math.round((3.0 - worstHf) / 2.0 * 100)));
+}
+
+router.get('/portfolio/:walletAddress', async (req, res) => {
+  const { walletAddress } = req.params;
+
+  try { new PublicKey(walletAddress); } catch {
+    return res.status(400).json({ error: 'invalid Solana address' });
+  }
+
+  let positions;
+  try {
+    const { getMarginFiPositions } = await import('../protocols/marginfi.js');
+    const { getKaminoPositions }   = await import('../protocols/kamino.js');
+
+    const [marginfi, kamino] = await Promise.allSettled([
+      getMarginFiPositions(walletAddress),
+      getKaminoPositions(walletAddress),
+    ]);
+
+    positions = [
+      ...(marginfi.status === 'fulfilled' ? marginfi.value : []),
+      ...(kamino.status  === 'fulfilled' ? kamino.value  : []),
+    ];
+
+    for (const p of positions) {
+      savePosition({
+        walletAddress,
+        protocol:      p.protocol,
+        collateralUsd: p.collateralUsd,
+        borrowUsd:     p.borrowUsd,
+        healthFactor:  p.healthFactor,
+        rawData:       p,
+      });
+    }
+  } catch {
+    // Fall back to last persisted snapshot
+    positions = getLatestPositions(walletAddress).map((row) =>
+      JSON.parse(row.raw_data || '{}')
+    );
+  }
+
+  const totalCollateralUsd = positions.reduce((sum, p) => sum + (p.collateralUsd ?? 0), 0);
+  const totalBorrowUsd     = positions.reduce((sum, p) => sum + (p.borrowUsd ?? 0), 0);
+  const activeHfs          = positions.map((p) => p.healthFactor).filter((hf) => hf !== null);
+  const worstHealthFactor  = activeHfs.length ? Math.min(...activeHfs) : null;
+
+  res.json({
+    positions,
+    totalCollateralUsd,
+    totalBorrowUsd,
+    worstHealthFactor,
+    riskScore:        computeRiskScore(worstHealthFactor),
+    latestAiAnalysis: getLatestAiAnalysis(walletAddress),
+    settings:         getWalletSettings(walletAddress),
+  });
+});
+
+// ── Per-wallet settings ────────────────────────────────────────────────────
+// POST /api/settings  body: { address, signature, hfWarning, hfCritical, alertsEnabled }
+router.post('/settings', (req, res) => {
+  const { address, signature, hfWarning, hfCritical, alertsEnabled } = req.body ?? {};
+
+  if (!address || !signature) {
+    return res.status(400).json({ error: 'address and signature are required' });
+  }
+
+  try { new PublicKey(address); } catch {
+    return res.status(400).json({ error: 'invalid Solana address' });
+  }
+
+  if (!verifyWalletSignature(address, signature)) {
+    return res.status(401).json({ error: 'signature verification failed' });
+  }
+
+  const warn = parseFloat(hfWarning);
+  const crit = parseFloat(hfCritical);
+
+  if (isNaN(warn) || warn <= 0 || isNaN(crit) || crit <= 0 || crit >= warn) {
+    return res.status(400).json({ error: 'hfWarning must be > hfCritical > 0' });
+  }
+
+  upsertWalletSettings(address, {
+    hfWarning:     warn,
+    hfCritical:    crit,
+    alertsEnabled: alertsEnabled !== false,
+  });
+
+  res.json({ ok: true, settings: getWalletSettings(address) });
+});
+
+// ── Telegram linking ───────────────────────────────────────────────────────
+// POST /api/telegram/link  body: { address, signature }
+// Returns a short-lived code the user types into the Telegram bot.
+router.post('/telegram/link', (req, res) => {
+  const { address, signature } = req.body ?? {};
+
+  if (!address || !signature) {
+    return res.status(400).json({ error: 'address and signature are required' });
+  }
+
+  try { new PublicKey(address); } catch {
+    return res.status(400).json({ error: 'invalid Solana address' });
+  }
+
+  if (!verifyWalletSignature(address, signature)) {
+    return res.status(401).json({ error: 'signature verification failed' });
+  }
+
+  const code = createLinkCode(address);
+  res.json({ ok: true, code, expiresInSeconds: 600 });
 });
 
 // ── Alerts ─────────────────────────────────────────────────────────────────

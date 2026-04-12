@@ -5,8 +5,10 @@ import {
   addWallet,
   getWalletsByUserId,
   getUserByTelegramId,
+  removeWallet,
   saveAlert,
   getLastAlertTime,
+  claimLinkCode,
 } from './db.js';
 import { PublicKey } from '@solana/web3.js';
 
@@ -16,12 +18,13 @@ export const bot = new Bot(config.telegramBotToken);
 bot.command('start', (ctx) => {
   upsertUser(String(ctx.from.id));
   ctx.reply(
-    '👋 Welcome to *Cheetah* — your DeFi liquidation shield on Solana\\.\n\n' +
+    '👋 Welcome to *CheetahFi* — your DeFi liquidation shield on Solana\\.\n\n' +
     'Commands:\n' +
     '/addwallet `<address>` — monitor a wallet\n' +
     '/wallets — list your watched wallets\n' +
     '/removewallet `<address>` — stop monitoring a wallet\n' +
-    '/status — show current positions and health factors',
+    '/status — show current positions and health factors\n' +
+    '/link `<code>` — link a wallet from the dashboard',
     { parse_mode: 'MarkdownV2' }
   );
 });
@@ -70,6 +73,31 @@ bot.command('status', async (ctx) => {
   ctx.reply('📊 Fetching positions... (not yet implemented — add wallets first)');
 });
 
+bot.command('link', async (ctx) => {
+  const code = ctx.match?.trim();
+  if (!code) return ctx.reply('Usage: /link <6-character code from the dashboard>');
+
+  const walletAddress = claimLinkCode(code);
+  if (!walletAddress) {
+    return ctx.reply('❌ Invalid or expired code. Please generate a new one from the dashboard (codes expire after 10 minutes).');
+  }
+
+  const user   = upsertUser(String(ctx.from.id));
+  const wallet = addWallet(user.id, walletAddress);
+
+  if (!wallet) {
+    return ctx.reply(
+      `✅ Already linked\\! \`${escMd(walletAddress.slice(0, 8))}\\.\\.\\.\` is already on your account\\.`,
+      { parse_mode: 'MarkdownV2' }
+    );
+  }
+
+  ctx.reply(
+    `✅ Wallet linked\\!\n\nNow monitoring \`${escMd(walletAddress.slice(0, 8))}\\.\\.\\.\` for liquidation risk\\.`,
+    { parse_mode: 'MarkdownV2' }
+  );
+});
+
 // ── Alert sender ───────────────────────────────────────────────────────────
 /**
  * Send a risk alert to all Telegram users watching this wallet.
@@ -87,7 +115,7 @@ export async function sendAlert({ walletAddress, protocol, riskLevel, healthFact
 
   const emoji = riskLevel === 'CRITICAL' ? '🚨' : riskLevel === 'HIGH' ? '⚠️' : 'ℹ️';
   const text =
-    `${emoji} *Cheetah Alert*\n` +
+    `${emoji} *CheetahFi Alert*\n` +
     `Protocol: ${escMd(protocol)}\n` +
     `Wallet: \`${escMd(walletAddress.slice(0, 8))}\\.\\.\\.\`\n` +
     `Health Factor: *${healthFactor?.toFixed(3) ?? 'N/A'}*\n` +
