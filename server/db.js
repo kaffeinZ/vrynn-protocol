@@ -46,6 +46,18 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_alerts_wallet ON alerts(wallet_address, sent_at DESC);
+
+  CREATE TABLE IF NOT EXISTS ai_analyses (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_address TEXT    NOT NULL,
+    protocol       TEXT    NOT NULL,
+    risk_level     TEXT    NOT NULL,
+    analysis       TEXT    NOT NULL,
+    health_factor  REAL,
+    created_at     INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_ai_wallet ON ai_analyses(wallet_address, created_at DESC);
 `);
 
 // ── users ──────────────────────────────────────────────────────────────────
@@ -112,6 +124,34 @@ export function getAlerts(walletAddress, limit = 20) {
 export function getLastAlertTime(walletAddress, protocol) {
   const row = db.prepare(`SELECT sent_at FROM alerts WHERE wallet_address = ? AND protocol = ? ORDER BY sent_at DESC LIMIT 1`).get(walletAddress, protocol);
   return row ? row.sent_at * 1000 : 0;
+}
+
+// ── ai_analyses ────────────────────────────────────────────────────────────
+export function saveAiAnalysis({ walletAddress, protocol, riskLevel, analysis, healthFactor }) {
+  db.prepare(`
+    INSERT INTO ai_analyses(wallet_address, protocol, risk_level, analysis, health_factor)
+    VALUES(?, ?, ?, ?, ?)
+  `).run(walletAddress, protocol, riskLevel, analysis, healthFactor);
+}
+
+export function getLatestAiAnalysis(walletAddress) {
+  return db.prepare(`
+    SELECT a.* FROM ai_analyses a
+    INNER JOIN (
+      SELECT protocol, MAX(created_at) AS latest
+      FROM ai_analyses WHERE wallet_address = ?
+      GROUP BY protocol
+    ) g ON a.protocol = g.protocol AND a.created_at = g.latest AND a.wallet_address = ?
+  `).all(walletAddress, walletAddress);
+}
+
+export function getLastAnalysisHealthFactor(walletAddress, protocol) {
+  const row = db.prepare(`
+    SELECT health_factor FROM ai_analyses
+    WHERE wallet_address = ? AND protocol = ?
+    ORDER BY created_at DESC LIMIT 1
+  `).get(walletAddress, protocol);
+  return row ? row.health_factor : null;
 }
 
 export default db;

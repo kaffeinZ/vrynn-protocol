@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import routes from './api/routes.js';
 import { bot } from './alerts.js';
+import { startMonitor } from './monitor.js';
 
 const app = express();
 
@@ -30,3 +31,5 @@ app.listen(config.port, () => {
 });
 
 bot.start({ onStart: () => console.log('[telegram] bot polling started') });
+
+startMonitor();

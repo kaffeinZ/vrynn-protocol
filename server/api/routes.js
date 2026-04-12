@@ -9,6 +9,7 @@ import {
   getLatestPositions,
   savePosition,
   getAlerts,
+  getLatestAiAnalysis,
 } from '../db.js';
 
 const router = Router();
@@ -103,6 +104,12 @@ router.get('/positions/:walletAddress', async (req, res) => {
 router.get('/alerts/:walletAddress', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
   res.json(getAlerts(req.params.walletAddress, limit));
+});
+
+// ── AI Risk Analysis ────────────────────────────────────────────────────────
+// GET /api/risk/:walletAddress  →  latest AI analysis per protocol
+router.get('/risk/:walletAddress', (req, res) => {
+  res.json(getLatestAiAnalysis(req.params.walletAddress));
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────

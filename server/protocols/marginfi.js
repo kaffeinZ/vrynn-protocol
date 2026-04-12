@@ -168,6 +168,7 @@ export async function getMarginFiPositions(walletAddress) {
     const borrowUsd      = balances.reduce((s, b) => s + b.liabilityUsd, 0);
     const healthFactor   = weightedLiabs === 0 ? null : weightedAssets / weightedLiabs;
     const riskLevel      = classifyRisk(healthFactor);
+    const positionType   = classifyPositionType(balances);
 
     return {
       protocol: 'marginfi',
@@ -176,6 +177,8 @@ export async function getMarginFiPositions(walletAddress) {
       borrowUsd,
       healthFactor,
       riskLevel,
+      positionType,
+      riskContext: riskContext(positionType, healthFactor),
       balances,
     };
   });
@@ -183,8 +186,66 @@ export async function getMarginFiPositions(walletAddress) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Known stablecoin mints on Solana mainnet
+const STABLECOIN_MINTS = new Set([
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
+  'USDH1SM1ojwWUga67PGrgFWUHibbjqMvuMaDkRJTgkX',  // USDH
+  'USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA',  // USDS
+  '7kbnvuGBxxj8AG9qp8Scn56muWGaRaFqxg1FsRp3PaFT', // UXD
+  'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', // BONK (excluded — volatile)
+]);
+
+/**
+ * Classifies a position by what types of assets are involved.
+ *
+ * stablecoin_loop  — both collateral and borrows are stablecoins.
+ *                    Risk is slow/interest-driven, not price-driven.
+ * volatile_collateral — collateral contains volatile tokens (SOL, meme coins).
+ *                       Risk is fast/price-driven.
+ * volatile_borrow  — borrowing volatile tokens against stable collateral.
+ *                    Risk from borrow-side price pumps.
+ * mixed            — both sides have volatile exposure.
+ */
+function classifyPositionType(balances) {
+  const collateralTokens = balances.filter(b => b.assetUsd > 0.01);
+  const borrowTokens     = balances.filter(b => b.liabilityUsd > 0.01);
+
+  if (collateralTokens.length === 0 && borrowTokens.length === 0) return 'empty';
+
+  const collateralAllStable = collateralTokens.every(b => STABLECOIN_MINTS.has(b.mint));
+  const borrowAllStable     = borrowTokens.every(b => STABLECOIN_MINTS.has(b.mint));
+  const collateralHasVolatile = collateralTokens.some(b => !STABLECOIN_MINTS.has(b.mint));
+  const borrowHasVolatile     = borrowTokens.some(b => !STABLECOIN_MINTS.has(b.mint));
+
+  if (collateralAllStable && borrowAllStable)       return 'stablecoin_loop';
+  if (collateralHasVolatile && borrowHasVolatile)   return 'mixed';
+  if (collateralHasVolatile && borrowAllStable)     return 'volatile_collateral';
+  if (collateralAllStable && borrowHasVolatile)     return 'volatile_borrow';
+  return 'mixed';
+}
+
+/**
+ * Returns a human-readable description of the risk for the alert/AI context.
+ */
+function riskContext(positionType, healthFactor) {
+  const hf = healthFactor?.toFixed(2) ?? '∞';
+  switch (positionType) {
+    case 'stablecoin_loop':
+      return `Stablecoin loop (HF ${hf}). Risk is interest-driven — borrow interest slowly erodes the buffer. No sudden price risk unless a stablecoin depegs.`;
+    case 'volatile_collateral':
+      return `Volatile collateral (HF ${hf}). Risk is price-driven — a drop in collateral value can trigger liquidation quickly.`;
+    case 'volatile_borrow':
+      return `Volatile borrow (HF ${hf}). Risk from borrow-side price pumps — if the borrowed token pumps, liabilities grow and HF drops.`;
+    case 'mixed':
+      return `Mixed position (HF ${hf}). Both collateral and borrow sides have volatile exposure. Monitor closely.`;
+    default:
+      return `Health factor: ${hf}`;
+  }
+}
+
 function classifyRisk(hf) {
-  if (hf === null) return 'SAFE';       // no debt
+  if (hf === null) return 'SAFE';
   if (hf >= 2.0)   return 'SAFE';
   if (hf >= 1.5)   return 'WARNING';
   if (hf >= 1.2)   return 'HIGH';
