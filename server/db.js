@@ -140,6 +140,14 @@ export function getLastAlertTime(walletAddress, protocol) {
   return row ? row.sent_at * 1000 : 0;
 }
 
+export function getLastAlert(walletAddress, protocol) {
+  return db.prepare(`
+    SELECT risk_level, health_factor, sent_at FROM alerts
+    WHERE wallet_address = ? AND protocol = ?
+    ORDER BY sent_at DESC LIMIT 1
+  `).get(walletAddress, protocol) ?? null;
+}
+
 // ── ai_analyses ────────────────────────────────────────────────────────────
 export function saveAiAnalysis({ walletAddress, protocol, riskLevel, analysis, healthFactor }) {
   db.prepare(`

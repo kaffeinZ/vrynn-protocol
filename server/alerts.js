@@ -7,7 +7,6 @@ import {
   getUserByTelegramId,
   removeWallet,
   saveAlert,
-  getLastAlertTime,
   claimLinkCode,
 } from './db.js';
 import { PublicKey } from '@solana/web3.js';
@@ -106,11 +105,6 @@ bot.command('link', async (ctx) => {
 import db from './db.js';
 
 export async function sendAlert({ walletAddress, protocol, riskLevel, healthFactor, message }) {
-  const now = Date.now();
-  const lastSent = getLastAlertTime(walletAddress, protocol);
-
-  if (now - lastSent < config.alertCooldownMs) return; // still in cooldown
-
   saveAlert({ walletAddress, protocol, riskLevel, healthFactor, message });
 
   const emoji = riskLevel === 'CRITICAL' ? '🚨' : riskLevel === 'HIGH' ? '⚠️' : 'ℹ️';
@@ -118,8 +112,8 @@ export async function sendAlert({ walletAddress, protocol, riskLevel, healthFact
     `${emoji} *CheetahFi Alert*\n` +
     `Protocol: ${escMd(protocol)}\n` +
     `Wallet: \`${escMd(walletAddress.slice(0, 8))}\\.\\.\\.\`\n` +
-    `Health Factor: *${healthFactor?.toFixed(3) ?? 'N/A'}*\n` +
-    `Risk: *${riskLevel}*\n\n` +
+    `Health Factor: *${escMd(healthFactor?.toFixed(3) ?? 'N/A')}*\n` +
+    `Risk: *${escMd(riskLevel)}*\n\n` +
     escMd(message);
 
   // Find all users watching this wallet
@@ -131,7 +125,8 @@ export async function sendAlert({ walletAddress, protocol, riskLevel, healthFact
 
   for (const user of users) {
     if (!user.telegram_id.startsWith('wallet:')) {
-      await bot.api.sendMessage(user.telegram_id, text, { parse_mode: 'MarkdownV2' }).catch(() => {});
+      await bot.api.sendMessage(user.telegram_id, text, { parse_mode: 'MarkdownV2' })
+        .catch((err) => console.error(`[telegram] failed to send to ${user.telegram_id}:`, err.message));
     }
   }
 }

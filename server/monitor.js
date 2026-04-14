@@ -10,6 +10,7 @@ import {
   getAllTrackedWallets,
   savePosition,
   getLastAnalysisHealthFactor,
+  getLastAlert,
 } from './db.js';
 import { getMarginFiPositions } from './protocols/marginfi.js';
 import { getKaminoPositions } from './protocols/kamino.js';
@@ -37,8 +38,22 @@ function significantChange(currentHf, lastHf) {
   return Math.abs(currentHf - lastHf) > 0.1;
 }
 
-function shouldAlert(riskLevel) {
-  return riskLevel === 'CRITICAL' || riskLevel === 'HIGH';
+function shouldAlert(walletAddress, protocol, currentRiskLevel, currentHf) {
+  if (currentRiskLevel !== 'CRITICAL' && currentRiskLevel !== 'HIGH') return false;
+
+  const last = getLastAlert(walletAddress, protocol);
+
+  // No previous alert — fire
+  if (!last) return true;
+
+  // Risk level changed in either direction — fire
+  if (last.risk_level !== currentRiskLevel) return true;
+
+  // Same risk level but HF shifted more than 0.05 — fire
+  if (last.health_factor !== null && Math.abs(currentHf - last.health_factor) > 0.05) return true;
+
+  // No meaningful change — stay quiet
+  return false;
 }
 
 function buildAlertMessage(position, aiAnalysis) {
@@ -114,7 +129,7 @@ async function scanWallet(address) {
 
   // Telegram alerts for HIGH / CRITICAL positions
   for (const pos of activePositions) {
-    if (shouldAlert(pos.riskLevel)) {
+    if (shouldAlert(address, pos.protocol, pos.riskLevel, pos.healthFactor)) {
       const message = buildAlertMessage(pos, aiResult);
       await sendAlert({
         walletAddress: address,
