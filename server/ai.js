@@ -36,6 +36,7 @@ function buildPrompt(walletAddress, positions) {
     `Wallet: ${walletAddress}\n\n` +
     `Current positions:\n${positionLines}\n\n` +
     `Task: Analyse the liquidation risk across these positions.\n` +
+    `Important: if collateral and borrow assets are both SOL-correlated (e.g. SOL/hSOL, SOL/mSOL, SOL/HyloSOL, SOL/jitoSOL), the primary risk is depeg not SOL price movement — do not warn about SOL price drops for correlated pairs.\n` +
     `Respond in this exact format — nothing else:\n` +
     `RISK_LEVEL: <LOW|MEDIUM|HIGH|CRITICAL>\n` +
     `ANALYSIS: <2-3 sentences explaining the risk and what the user should do>`
