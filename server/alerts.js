@@ -18,7 +18,7 @@ export const bot = new Bot(config.telegramBotToken);
 bot.command('start', (ctx) => {
   upsertUser(String(ctx.from.id));
   ctx.reply(
-    '👋 Welcome to *CheetahFi* — your DeFi liquidation shield on Solana\\.\n\n' +
+    '👋 Welcome to *CheetahFi* — real\\-time Solana lending alerts \\(early beta\\)\\.\n\n' +
     'Commands:\n' +
     '/addwallet `<address>` — monitor a wallet\n' +
     '/wallets — list your watched wallets\n' +

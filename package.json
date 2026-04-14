@@ -23,6 +23,7 @@
     "express": "^5.2.1",
     "grammy": "^1.42.0",
     "node-cron": "^4.2.1",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "twitter-api-v2": "^1.29.0"
   }
 }

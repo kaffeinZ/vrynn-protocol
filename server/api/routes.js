@@ -242,6 +242,31 @@ router.get('/risk/:walletAddress', (req, res) => {
   res.json(getLatestAiAnalysis(req.params.walletAddress));
 });
 
+// ── Admin: manual tweet ────────────────────────────────────────────────────
+// POST /api/admin/tweet  body: { secret, text }
+router.post('/admin/tweet', async (req, res) => {
+  const { secret, text } = req.body ?? {};
+  const { config } = await import('../config.js');
+
+  if (!config.adminSecret || secret !== config.adminSecret) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  if (!text?.trim()) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+
+  if (text.trim().length > 280) {
+    return res.status(400).json({ error: `text is ${text.trim().length} chars — max 280` });
+  }
+
+  const { postTweet } = await import('../twitter.js');
+  const result = await postTweet(text.trim());
+
+  if (!result) return res.status(500).json({ error: 'tweet failed — check server logs' });
+  res.json({ ok: true, tweetId: result.id });
+});
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 import db from '../db.js';
 function getUserByAddress(address) {
