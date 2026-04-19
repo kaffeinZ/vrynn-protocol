@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 
-const API = 'http://localhost:3001/api'
+const API = 'https://vrynn.xyz/api'
 
 export function useVrynn() {
   const { publicKey } = useWallet()
@@ -16,7 +16,7 @@ export function useVrynn() {
     async function fetchData() {
       setLoading(true)
       setError(null)
-      try {
+      try { 
         const address = publicKey.toBase58()
         const [portfolioRes, alertsRes] = await Promise.all([
           fetch(`${API}/portfolio/${address}`),

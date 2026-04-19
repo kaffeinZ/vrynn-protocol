@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import bs58 from 'bs58'
 
-const API = 'http://localhost:3001/api'
+const API = 'https://vrynn.xyz/api'
 
 export default function Settings({ settings, onSaved }) {
   const { publicKey, signMessage } = useWallet()

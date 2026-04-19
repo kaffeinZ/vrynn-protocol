@@ -13,6 +13,16 @@ import { PublicKey } from '@solana/web3.js';
 
 export const bot = new Bot(config.telegramBotToken);
 
+const _lastCommand = new Map();
+function throttle(ctx, next) {
+  const id = String(ctx.from?.id);
+  const now = Date.now();
+  if (_lastCommand.has(id) && now - _lastCommand.get(id) < 5000) return;
+  _lastCommand.set(id, now);
+  return next();
+}
+bot.use(throttle);
+
 // ── Commands ───────────────────────────────────────────────────────────────
 bot.command('start', (ctx) => {
   upsertUser(String(ctx.from.id));

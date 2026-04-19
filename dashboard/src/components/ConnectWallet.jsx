@@ -3,9 +3,9 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { useEffect, useState } from 'react'
 import bs58 from 'bs58'
 
-const API = 'http://localhost:3001/api'
+const API = 'https://vrynn.xyz/api'
 
-export default function ConnectWallet({ onAuth }) {
+export default function ConnectWallet({ onAuth, compact }) {
   const { publicKey, signMessage, connected, disconnecting } = useWallet()
   const [error, setError] = useState(null)
 
@@ -51,5 +51,5 @@ export default function ConnectWallet({ onAuth }) {
     </div>
   )
 
-  return <WalletMultiButton />
+  return <WalletMultiButton style={compact ? { fontSize: '13px', padding: '6px 14px', height: 'auto' } : {}} />
 }
