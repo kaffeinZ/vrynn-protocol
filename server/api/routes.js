@@ -320,6 +320,30 @@ router.post('/analyze', async (req, res) => {
   }
 });
 
+// ── HF History ─────────────────────────────────────────────────────────────
+// GET /api/hf-history/:walletAddress?period=24h|7d
+router.get('/hf-history/:walletAddress', (req, res) => {
+  const { walletAddress } = req.params;
+  const period = req.query.period === '7d' ? 7 * 24 * 3600 : 24 * 3600;
+
+  const rows = db.prepare(`
+    SELECT protocol, health_factor, recorded_at
+    FROM positions
+    WHERE wallet_address = ?
+      AND health_factor IS NOT NULL
+      AND recorded_at >= unixepoch() - ?
+    ORDER BY recorded_at ASC
+  `).all(walletAddress, period);
+
+  const byProtocol = {};
+  for (const row of rows) {
+    if (!byProtocol[row.protocol]) byProtocol[row.protocol] = [];
+    byProtocol[row.protocol].push({ t: row.recorded_at, hf: row.health_factor });
+  }
+
+  res.json(byProtocol);
+});
+
 // ── Admin: manual tweet ────────────────────────────────────────────────────
 // POST /api/admin/tweet  body: { secret, text }
 router.post('/admin/tweet', async (req, res) => {

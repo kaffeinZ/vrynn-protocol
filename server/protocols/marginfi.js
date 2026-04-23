@@ -60,7 +60,19 @@ function applyPatches() {
 
 let _client = null;
 let _clientLoadedAt = 0;
-const CLIENT_TTL_MS = 10 * 60 * 1000; // re-fetch bank metadata every 10 min
+const CLIENT_TTL_MS  = 10 * 60 * 1000;
+const RPC_TIMEOUT_MS = 15 * 1000;
+
+const _positionCache    = new Map();
+const _positionCacheAt  = new Map();
+const POSITION_STALE_MS = 5 * 60 * 1000;
+
+function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`MarginFi RPC timeout after ${ms}ms`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
 
 async function getClient() {
   const now = Date.now();
@@ -134,11 +146,23 @@ export async function getMarginFiTokenBalances(walletAddress) {
  * }
  */
 export async function getMarginFiPositions(walletAddress) {
-  const client = await getClient();
-  const accounts = await client.getMarginfiAccountsForAuthority(walletAddress);
+  let client, accounts;
+  try {
+    client   = await withTimeout(getClient(), RPC_TIMEOUT_MS);
+    accounts = await withTimeout(client.getMarginfiAccountsForAuthority(walletAddress), RPC_TIMEOUT_MS);
+  } catch (err) {
+    const cachedAt = _positionCacheAt.get(walletAddress) ?? 0;
+    const stale    = _positionCache.get(walletAddress);
+    if (stale && Date.now() - cachedAt < POSITION_STALE_MS) {
+      console.warn(`[marginfi] RPC failed, using cached data: ${err.message}`);
+      return stale;
+    }
+    console.error(`[marginfi] RPC failed, no cache: ${err.message}`);
+    return [];
+  }
   if (!accounts.length) return [];
 
-  return accounts.map((acc) => {
+  const positions = accounts.map((acc) => {
     const balances = acc.activeBalances.map((b) => {
       const bank = client.getBankByPk(b.bankPk);
       const oracle = client.getOraclePriceByBank(bank?.address);
@@ -182,6 +206,9 @@ export async function getMarginFiPositions(walletAddress) {
       balances,
     };
   });
+  _positionCache.set(walletAddress, positions);
+  _positionCacheAt.set(walletAddress, Date.now());
+  return positions;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

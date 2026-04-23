@@ -162,7 +162,7 @@ export function startMonitor() {
       return;
     }
 
-    console.log(`[monitor] scanning ${wallets.length} wallet(s)`);
+    console.log(`[${new Date().toISOString()}] [monitor] scanning ${wallets.length} wallet(s)`);
     for (const { address } of wallets) {
       await scanWallet(address);
     }

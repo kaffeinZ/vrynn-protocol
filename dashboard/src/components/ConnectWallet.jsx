@@ -4,41 +4,39 @@ import { useEffect, useState } from 'react'
 import bs58 from 'bs58'
 
 const API = 'https://vrynn.xyz/api'
+let _authenticating = false
 
 export default function ConnectWallet({ onAuth, compact }) {
-  const { publicKey, signMessage, connected, disconnecting } = useWallet()
+  const { publicKey, signMessage, connected } = useWallet()
   const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!connected || !publicKey || !signMessage) return
     if (localStorage.getItem('vrynn_auth')) return
+    if (_authenticating) return
+    _authenticating = true
 
     async function authenticate() {
       try {
-        // 1. fetch the message to sign
         const { message } = await fetch(`${API}/auth/message`).then(r => r.json())
-
-        // 2. sign it with Phantom
-        const encoded = new TextEncoder().encode(message)
+        const encoded   = new TextEncoder().encode(message)
         const signature = await signMessage(encoded)
+        const sig58     = bs58.encode(signature)
 
-        // 3. send address + signature to backend
         const res = await fetch(`${API}/wallet`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            address: publicKey.toBase58(),
-            signature: bs58.encode(signature),
-          }),
+          body: JSON.stringify({ address: publicKey.toBase58(), signature: sig58 }),
         })
 
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
 
-        // 4. pass auth result up to parent (include signature for reuse)
-        onAuth({ address: publicKey.toBase58(), signature: bs58.encode(signature), ...data })
+        onAuth?.({ address: publicKey.toBase58(), signature: sig58, ...data })
       } catch (err) {
         setError(err.message)
+      } finally {
+        _authenticating = false
       }
     }
 

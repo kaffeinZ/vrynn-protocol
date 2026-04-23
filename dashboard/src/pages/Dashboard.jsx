@@ -7,6 +7,7 @@ import AlertHistory from '../components/AlertHistory'
 import Settings from '../components/Settings'
 import TelegramLink from '../components/TelegramLink'
 import AiAnalysis from '../components/AiAnalysis'
+import HfChart from '../components/HfChart'
 
 export default function Dashboard() {
   const { publicKey } = useWallet()
@@ -70,7 +71,8 @@ export default function Dashboard() {
               </div>
 
               <AiAnalysis analyses={portfolio.latestAiAnalysis ?? []} onResult={refresh} />
-
+              <HfChart walletAddress={address} />
+              
               {portfolio.positions.length === 0 ? (
                 <div className="flex flex-col items-center gap-4 py-16 text-center">
                   <p className="text-zinc-400">No active lending positions found.</p>
