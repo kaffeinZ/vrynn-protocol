@@ -8,6 +8,7 @@ import Settings from '../components/Settings'
 import TelegramLink from '../components/TelegramLink'
 import AiAnalysis from '../components/AiAnalysis'
 import HfChart from '../components/HfChart'
+import LiquidationCalc from '../components/LiquidationCalc'
 
 export default function Dashboard() {
   const { publicKey } = useWallet()
@@ -45,16 +46,11 @@ export default function Dashboard() {
 
       {error && <p className="text-[#e0007a] text-center font-medium px-6 py-2">{error}</p>}
 
-      {/* 3-column layout */}
-      <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-5 items-start">
-
-        {/* Left — Alerts */}
-        <aside className="flex flex-col gap-4 lg:order-1 order-2">
-          <AlertHistory alerts={alerts} />
-        </aside>
+      {/* 2-column layout */}
+      <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-5 items-start">
 
         {/* Centre — Positions */}
-        <section className="flex flex-col gap-5 lg:order-2 order-1">
+        <section className="flex flex-col gap-5 lg:order-1 order-1">
           {portfolio && (
             <>
               <RiskScore score={portfolio.riskScore} />
@@ -71,6 +67,7 @@ export default function Dashboard() {
               </div>
 
               <AiAnalysis analyses={portfolio.latestAiAnalysis ?? []} onResult={refresh} />
+              <LiquidationCalc positions={portfolio.positions} />
               <HfChart walletAddress={address} />
               
               {portfolio.positions.length === 0 ? (
@@ -90,8 +87,9 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* Right — Settings */}
-        <aside className="flex flex-col gap-4 lg:order-3 order-3">
+        {/* Right — Alerts + Settings */}
+        <aside className="flex flex-col gap-4 lg:order-2 order-2">
+          <AlertHistory alerts={alerts} />
           {portfolio && (
             <>
               <Settings settings={portfolio.settings} onSaved={(s) => console.log('settings saved', s)} />
