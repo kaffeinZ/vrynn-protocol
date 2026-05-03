@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 const API = 'https://vrynn.xyz/api'
 
+const RISK_COLORS = {
+  LOW:      { bg: '#2ecc0025', color: '#2ecc00' },
+  MEDIUM:   { bg: '#00c8e025', color: '#00c8e0' },
+  HIGH:     { bg: '#e0600025', color: '#e06000' },
+  CRITICAL: { bg: '#e0007a25', color: '#e0007a' },
+}
+
 export default function AiAnalysis({ analyses = [], onResult }) {
   const { publicKey } = useWallet()
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState(null)
-  const [usage,     setUsage]     = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(null)
+  const [usage,   setUsage]   = useState(null)
 
   async function handleAnalyze() {
     if (!publicKey) return
@@ -40,49 +50,54 @@ export default function AiAnalysis({ analyses = [], onResult }) {
   const atLimit   = remaining !== null && remaining <= 0
 
   return (
-    <div className="card p-5 flex flex-col gap-3 border-l-4 border-l-[#7000e0]">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-[#7000e0] uppercase tracking-wider text-xs">AI Risk Analysis</h2>
-        <div className="flex items-center gap-3">
-          {remaining !== null && (
-            <span className={`text-xs font-medium ${atLimit ? 'text-[#e0007a]' : 'text-zinc-400'}`}>
-              {remaining}/{usage.limit} today
-            </span>
-          )}
-          <button
-            onClick={handleAnalyze}
-            disabled={loading || atLimit}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(90deg, #7000e0, #e0007a)', boxShadow: '0 2px 8px rgba(112,0,224,0.3)' }}
-          >
-            {loading ? 'Analysing...' : atLimit ? 'Limit reached' : '✦ Analyse Risk'}
-          </button>
-        </div>
-      </div>
-
-      {analyses.length > 0 ? (
-        analyses.map((a, i) => (
-          <div key={i} className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-400 text-xs capitalize">{a.protocol}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                a.risk_level === 'LOW'    ? 'bg-[#2ecc00]/15 text-[#2ecc00]' :
-                a.risk_level === 'MEDIUM' ? 'bg-[#00c8e0]/15 text-[#00c8e0]' :
-                a.risk_level === 'HIGH'   ? 'bg-[#e06000]/15 text-[#e06000]' :
-                'bg-[#e0007a]/15 text-[#e0007a]'
-              }`}>{a.risk_level}</span>
-              <span className="text-zinc-300 dark:text-zinc-600 text-xs ml-auto">
-                {new Date(a.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+    <Card className="border-l-4" style={{ borderLeftColor: '#7000e0' }}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-xs uppercase tracking-wider" style={{ color: '#7000e0' }}>AI Risk Analysis</span>
+          <div className="flex items-center gap-3">
+            {remaining !== null && (
+              <span className={`text-xs font-medium ${atLimit ? 'text-[#e0007a]' : 'text-muted-foreground'}`}>
+                {remaining}/{usage.limit} today
               </span>
-            </div>
-            <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed">{a.analysis}</p>
+            )}
+            <Button
+              size="sm"
+              onClick={handleAnalyze}
+              disabled={loading || atLimit}
+              className="text-white text-xs"
+              style={{ background: 'linear-gradient(90deg, #7000e0, #e0007a)' }}
+            >
+              {loading ? 'Analysing...' : atLimit ? 'Limit reached' : '✦ Analyse Risk'}
+            </Button>
           </div>
-        ))
-      ) : (
-        <p className="text-zinc-400 text-sm">No analysis yet — click Analyse Risk to get started.</p>
-      )}
+        </div>
+      </CardHeader>
 
-      {error && <p className="text-[#e0007a] text-xs">{error}</p>}
-    </div>
+      <CardContent className="flex flex-col gap-3">
+        {analyses.length > 0 ? (
+          analyses.map((a, i) => {
+            const riskStyle = RISK_COLORS[a.risk_level] ?? { bg: '#e4e4e725', color: '#71717a' }
+            return (
+              <div key={i} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs capitalize">{a.protocol}</span>
+                  <Badge style={{ background: riskStyle.bg, color: riskStyle.color, border: 'none' }}>
+                    {a.risk_level}
+                  </Badge>
+                  <span className="text-muted-foreground text-xs ml-auto">
+                    {new Date(a.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p className="text-muted-foreground text-sm leading-relaxed">{a.analysis}</p>
+              </div>
+            )
+          })
+        ) : (
+          <p className="text-muted-foreground text-sm">No analysis yet — click Analyse Risk to get started.</p>
+        )}
+
+        {error && <p className="text-[#e0007a] text-xs">{error}</p>}
+      </CardContent>
+    </Card>
   )
 }

@@ -2,6 +2,7 @@ import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { useEffect, useState } from 'react'
 import bs58 from 'bs58'
+import { Button } from '@/components/ui/button'
 
 const API = 'https://vrynn.xyz/api'
 let _authenticating = false
@@ -44,8 +45,8 @@ export default function ConnectWallet({ onAuth, compact }) {
   }, [connected, publicKey])
 
   if (error) return (
-    <div className="flex flex-col items-center gap-4">
-      <p className="text-red-400 text-sm">{error}</p>
+    <div className="flex flex-col items-center gap-3">
+      <p className="text-[#e0007a] text-sm">{error}</p>
       <WalletMultiButton />
     </div>
   )

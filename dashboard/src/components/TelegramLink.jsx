@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 const API = 'https://vrynn.xyz/api'
 
@@ -41,46 +43,48 @@ export default function TelegramLink() {
   }
 
   return (
-    <div className="card p-5 flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-zinc-700 font-bold">Link Telegram</h2>
-        <p className="text-zinc-400 text-sm">Connect your Telegram to receive alerts directly in your chat.</p>
-      </div>
+    <Card>
+      <CardHeader>
+        <span className="font-semibold text-sm">Link Telegram</span>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-muted-foreground text-sm">Connect your Telegram to receive alerts directly in your chat.</p>
 
-      {!code ? (
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="py-2.5 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-50"
-          style={{ background: 'linear-gradient(90deg, #00c8e0, #7000e0)', boxShadow: '0 4px 16px rgba(0,200,224,0.3)' }}
-        >
-          {loading ? 'Generating...' : 'Generate Link Code'}
-        </button>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-zinc-500 text-sm">
-            Send this command to <span className="text-zinc-900 font-mono font-bold">@VrynnBot</span> on Telegram:
-          </p>
-          <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3">
-            <span className="text-zinc-900 font-mono text-lg tracking-widest flex-1">/link {code}</span>
+        {!code ? (
+          <Button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full text-white"
+            style={{ background: 'linear-gradient(90deg, #00c8e0, #7000e0)' }}
+          >
+            {loading ? 'Generating...' : 'Generate Link Code'}
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-muted-foreground text-sm">
+              Send this command to <span className="font-mono font-bold text-foreground">@VrynnBot</span> on Telegram:
+            </p>
+            <div className="flex items-center gap-2 bg-muted border border-border rounded-sm px-4 py-3">
+              <span className="font-mono text-lg tracking-widest flex-1">/link {code}</span>
+              <button
+                onClick={handleCopy}
+                className="text-[#00c8e0] hover:text-[#00a8c0] text-xs font-semibold transition-colors"
+              >
+                {copied ? '✓ Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="text-muted-foreground text-xs">Code expires in 10 minutes.</p>
             <button
-              onClick={handleCopy}
-              className="text-[#00c8e0] hover:text-[#00a8c0] text-xs font-semibold transition-colors"
+              onClick={handleGenerate}
+              className="text-[#00c8e0] hover:text-[#00a8c0] text-sm font-medium transition-colors"
             >
-              {copied ? '✓ Copied' : 'Copy'}
+              Generate new code
             </button>
           </div>
-          <p className="text-zinc-400 text-xs">Code expires in 10 minutes.</p>
-          <button
-            onClick={handleGenerate}
-            className="text-[#00c8e0] hover:text-[#00a8c0] text-sm font-medium transition-colors"
-          >
-            Generate new code
-          </button>
-        </div>
-      )}
+        )}
 
-      {error && <p className="text-[#e0007a] text-sm">{error}</p>}
-    </div>
+        {error && <p className="text-[#e0007a] text-sm">{error}</p>}
+      </CardContent>
+    </Card>
   )
 }

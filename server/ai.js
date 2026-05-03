@@ -15,15 +15,30 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 function buildPrompt(walletAddress, positions, priceTrendContext = null) {
   const positionLines = positions.map((p) => {
+    if (p.positionType === 'perp') {
+      const distPct  = p.distancePct != null ? p.distancePct.toFixed(2) : 'N/A';
+      const liqPrice = p.liquidationPrice != null ? `$${p.liquidationPrice.toFixed(4)}` : 'N/A';
+      const curPrice = p.currentPrice != null ? `$${p.currentPrice.toFixed(4)}` : 'N/A';
+      const pnl      = p.unrealizedPnl != null ? `$${p.unrealizedPnl.toFixed(2)}` : 'N/A';
+      const size     = p.collateralUsd != null ? `$${p.collateralUsd.toFixed(2)}` : 'N/A';
+      return (
+        `Protocol: ${p.protocol} (PERPETUAL)\n` +
+        `Side: ${p.side ?? 'N/A'} | Leverage: ${p.leverage ?? 'N/A'}x | Size: ${size}\n` +
+        `Current price: ${curPrice} | Liquidation price: ${liqPrice}\n` +
+        `Distance from liquidation: ${distPct}%\n` +
+        `Unrealised PnL: ${pnl}`
+      );
+    }
+
     const hf = p.healthFactor != null ? p.healthFactor.toFixed(3) : 'N/A (no debt)';
-    const balanceLines = p.balances
+    const balanceLines = (p.balances ?? [])
       .filter((b) => b.assetUsd > 0.01 || b.liabilityUsd > 0.01)
       .map((b) =>
         `    ${b.token}: deposited $${b.assetUsd.toFixed(2)}, borrowed $${b.liabilityUsd.toFixed(2)} (price $${b.priceUsd.toFixed(4)})`
       )
       .join('\n');
     return (
-      `Protocol: ${p.protocol}\n` +
+      `Protocol: ${p.protocol} (LENDING)\n` +
       `Health Factor: ${hf}\n` +
       `Collateral: $${p.collateralUsd.toFixed(2)} | Borrow: $${p.borrowUsd.toFixed(2)}\n` +
       `Position type: ${p.positionType ?? 'unknown'}\n` +
@@ -32,12 +47,15 @@ function buildPrompt(walletAddress, positions, priceTrendContext = null) {
   }).join('\n\n');
 
   return (
-    `You are a DeFi risk analyst specialising in Solana lending protocols.\n\n` +
+    `You are a DeFi risk analyst specialising in Solana protocols (lending and perpetuals).\n\n` +
     `Wallet: ${walletAddress}\n\n` +
     `Current positions:\n${positionLines}\n\n` +
-    `Task: Analyse the liquidation risk across these positions.\n` +
-    `CRITICAL RULE: if position_type is "lst_loop", collateral and debt move together with SOL price. SOL price dropping does NOT affect the health factor. The ONLY real risk is a depeg between the two tokens. NEVER say "if SOL falls" for lst_loop positions — it is factually wrong and misleading. Only discuss depeg risk.\n` +
-    `${priceTrendContext ? `Recent price trends (last 6h):\n${priceTrendContext}\nUse these trends to estimate time-to-liquidation if the trend continues. Be specific: "at this rate, liquidation could occur in approximately X hours."\n` : ''}` +
+    `Task: Analyse the liquidation risk across these positions.\n\n` +
+    `RULES:\n` +
+    `- LENDING positions: Health Factor <1.0 = liquidated. <1.2 = CRITICAL. <1.5 = HIGH. <2.0 = MEDIUM. ≥2.0 = LOW.\n` +
+    `- PERPETUAL positions: the risk metric is "distance from liquidation" (%). CRITICAL <5%. HIGH <10%. WARNING <20%. SAFE ≥20%. Do NOT use health factor language for perps — use price and distance. State the current price, liquidation price, and how many dollars or percent SOL must move to trigger liquidation.\n` +
+    `- If position_type is "lst_loop": collateral and debt move together with SOL price. SOL dropping does NOT affect the health factor. The ONLY risk is a depeg between the two tokens. NEVER say "if SOL falls" for lst_loop — it is factually wrong.\n` +
+    `${priceTrendContext ? `Recent price trends (last 6h):\n${priceTrendContext}\nUse these trends to estimate time-to-liquidation if the trend continues. Be specific: "at this rate, liquidation could occur in approximately X hours."\n\n` : ''}` +
     `Respond in this exact format — nothing else:\n` +
     `RISK_LEVEL: <LOW|MEDIUM|HIGH|CRITICAL>\n` +
     `ANALYSIS: <2-3 sentences explaining the risk and what the user should do>`

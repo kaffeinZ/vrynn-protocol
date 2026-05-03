@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import { Slider } from '@/components/ui/slider'
+import { Badge } from '@/components/ui/badge'
 
 const STABLE = new Set(['USDC', 'USDT', 'USDH', 'USDS', 'UXD', 'UST', 'DAI', 'PYUSD', 'USDe', 'EUSD'])
 
@@ -21,8 +24,6 @@ function hfLabel(hf) {
 
 function projectHf(pos, dropFraction) {
   if (pos.healthFactor === null) return null
-
-  // Perps: check if stressed price crosses liq price
   if (pos.positionType === 'perp') {
     if (!pos.currentPrice || !pos.liqPrice) return pos.healthFactor
     const stressedPrice = pos.currentPrice * (1 - dropFraction)
@@ -30,7 +31,6 @@ function projectHf(pos, dropFraction) {
     const newDistancePct = (stressedPrice - pos.liqPrice) / stressedPrice * 100
     return newDistancePct / 5
   }
-
   if (dropFraction === 0) return pos.healthFactor
   const { balances, positionType } = pos
   const hasTokenPrices = balances?.some(b => b.priceUsd > 0)
@@ -76,69 +76,72 @@ export default function LiquidationCalc({ positions }) {
   const dropFraction = drop / 100
 
   return (
-    <div className="card p-5 flex flex-col gap-5">
-      <h2 className="text-zinc-400 font-semibold uppercase tracking-wider text-xs">Liquidation Calculator</h2>
+    <Card>
+      <CardHeader>
+        <span className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Liquidation Calculator</span>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
 
-      <div className="flex flex-col gap-4">
-        {activePositions.map((pos, i) => {
-          const prices = liquidationPrices(pos)
-          const projHf = projectHf(pos, dropFraction)
-          const buffer = pos.positionType === 'perp'
-            ? pos.distancePct?.toFixed(1)
-            : pos.healthFactor ? ((1 - 1 / pos.healthFactor) * 100).toFixed(1) : null
-          const color  = hfColor(projHf)
-          const label  = hfLabel(projHf)
-          return (
-            <div key={i} className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 flex flex-col gap-3 border border-zinc-100 dark:border-zinc-700">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold capitalize text-zinc-800 dark:text-zinc-200">{pos.protocol}</span>
-                {buffer && (
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    absorbs up to <span className="font-bold text-zinc-800 dark:text-zinc-200">{buffer}%</span> drop
-                  </span>
+        <div className="flex flex-col gap-4">
+          {activePositions.map((pos, i) => {
+            const prices = liquidationPrices(pos)
+            const projHf = projectHf(pos, dropFraction)
+            const buffer = pos.positionType === 'perp'
+              ? pos.distancePct?.toFixed(1)
+              : pos.healthFactor ? ((1 - 1 / pos.healthFactor) * 100).toFixed(1) : null
+            const color = hfColor(projHf)
+            const label = hfLabel(projHf)
+            return (
+              <div key={i} className="bg-muted rounded-sm p-4 flex flex-col gap-3 border border-border">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold capitalize text-sm">{pos.protocol}</span>
+                  {buffer && (
+                    <span className="text-muted-foreground text-xs">
+                      absorbs up to <span className="font-bold text-foreground">{buffer}%</span> drop
+                    </span>
+                  )}
+                </div>
+                {prices.length > 0 && (
+                  <div className="flex flex-wrap gap-4">
+                    {prices.map(p => (
+                      <div key={p.token} className="flex flex-col">
+                        <span className="text-muted-foreground text-xs uppercase tracking-wider">{p.token} liq. price</span>
+                        <span className="font-bold">${p.liq.toFixed(2)}</span>
+                        <span className="text-muted-foreground text-xs">current ${p.current.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-              {prices.length > 0 && (
-                <div className="flex flex-wrap gap-4">
-                  {prices.map(p => (
-                    <div key={p.token} className="flex flex-col">
-                      <span className="text-zinc-400 text-xs uppercase tracking-wider">{p.token} liq. price</span>
-                      <span className="text-zinc-900 dark:text-zinc-100 font-bold">${p.liq.toFixed(2)}</span>
-                      <span className="text-zinc-400 text-xs">current ${p.current.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-400 text-xs">Projected HF</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-lg" style={{ color }}>
-                    {projHf !== null ? projHf.toFixed(3) : '∞'}
-                  </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color, background: color + '20' }}>
-                    {label}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground text-xs">Projected HF</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-lg" style={{ color }}>
+                      {projHf !== null ? projHf.toFixed(3) : '∞'}
+                    </span>
+                    <Badge style={{ background: color + '20', color, border: 'none' }}>{label}</Badge>
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-zinc-500 dark:text-zinc-400 text-xs font-medium">Price drop stress test</span>
-          <span className="text-zinc-900 dark:text-zinc-100 font-bold text-sm">{drop === 0 ? 'Current' : `-${drop}%`}</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-xs font-medium">Price drop stress test</span>
+            <span className="font-bold text-sm">{drop === 0 ? 'Current' : `-${drop}%`}</span>
+          </div>
+          <Slider
+            value={[drop]}
+            onValueChange={([v]) => setDrop(v)}
+            min={0} max={50} step={1}
+          />
+          <div className="flex justify-between text-muted-foreground text-xs">
+            <span>0%</span><span>-10%</span><span>-20%</span><span>-30%</span><span>-40%</span><span>-50%</span>
+          </div>
         </div>
-        <input
-          type="range" min={0} max={50} step={1} value={drop}
-          onChange={e => setDrop(Number(e.target.value))}
-          className="w-full accent-[#8b00ff] cursor-pointer"
-        />
-        <div className="flex justify-between text-zinc-300 dark:text-zinc-600 text-xs">
-          <span>0%</span><span>-10%</span><span>-20%</span><span>-30%</span><span>-40%</span><span>-50%</span>
-        </div>
-      </div>
-    </div>
+
+      </CardContent>
+    </Card>
   )
 }
