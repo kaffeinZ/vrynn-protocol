@@ -74,7 +74,8 @@ async function fetchMarginFiMarkets() {
     for (const [, bank] of client.banks) {
       try {
         const rates     = bank.computeInterestRates()
-        const symbol    = bank.tokenSymbol ?? bank.mint?.toString().slice(0, 6)
+        const symbol    = bank.tokenSymbol
+        if (!symbol) continue
         const rawSupply = rates.lendingRate?.toNumber?.()   ?? parseFloat(rates.lendingRate)   ?? 0
         const rawBorrow = rates.borrowingRate?.toNumber?.() ?? parseFloat(rates.borrowingRate) ?? 0
         const supplyApy = (Math.exp(rawSupply) - 1) * 100
