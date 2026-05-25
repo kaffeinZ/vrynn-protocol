@@ -220,10 +220,35 @@ This is an early-stage project. Direction may shift as the product evolves.
 | ✅ | AI analysis history |
 | ✅ | Health Factor history chart (24h / 7d) |
 | ✅ | Configurable dashboard thresholds |
-| 🔜 | Liquidation price calculator + stress test slider |
-| 🔜 | Live token prices in position cards |
+| ✅ | Liquidation price calculator + stress test slider |
+| ✅ | Live token prices in position cards |
 | 🔜 | Demo mode — explore without connecting a wallet |
 | 🔜 | Additional protocol support |
+| 🔜 | Design system unification — landing + dashboard (see below) |
+
+---
+
+## Design Roadmap — Option A (Shadcn/ui unification)
+
+The landing page (`landing/index.html`) and the dashboard (`dashboard/`) currently have different visual styles — they look like separate products. The goal is to make both surfaces feel like one cohesive product.
+
+**The plan:**
+
+1. **Adopt Shadcn/ui as the single design system** — already partially in place (`dashboard/components.json` exists). Extend it with a shared colour palette, typography scale, and component set.
+
+2. **Rebuild the landing page inside the dashboard React app** — move `landing/index.html` into `dashboard/src/pages/Landing.jsx` as a proper React route. The landing becomes the unauthenticated entry point of the same app, not a separate HTML file.
+
+3. **Landing page sections to build in React:**
+   - Hero — headline, "Connect Wallet" CTA, short value prop
+   - What it does — 3-column feature cards (multi-protocol, AI analysis, position-aware risk)
+   - How it works — 3 numbered steps (connect → view positions → run analysis)
+   - Footer — links, disclaimer, GitHub
+
+4. **Dashboard visual pass** — once Shadcn/ui is the system, tighten the dashboard: consistent card borders, spacing, and colour tokens across PositionCard, PerpPositionCard, RiskScore, and the sidebar.
+
+**Why this over a Framer template:** A Framer template for the landing would create a visual mismatch the moment a user clicks "Connect Wallet" and hits the dashboard. Building the landing inside the same React app means one font, one colour system, one feel end-to-end.
+
+**Estimated scope:** 1–2 days. The data layer (API, hooks, components) does not change — this is entirely a visual/layout rebuild.
 
 ---
 
