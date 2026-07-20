@@ -6,6 +6,58 @@ Vrynn is in active development and the product is still taking shape. Features, 
 
 ---
 
+## Status & Roadmap
+
+> Living doc — flip the status marks and append to the log/ledger below.
+> Editing this file is documentation only; it cannot affect the running server.
+
+**What Vrynn is (as of 2026-07-20):** a public crypto market-intelligence site.
+The core product is a daily, data-backed market brief — *what moved and what
+coincided with it* — written to a professional, honestly-caveated standard:
+facts and flagged correlations only, never advice or "what to do". A wallet-gated
+personal layer (portfolio view) is a later add-on.
+
+**Pivoted from:** a personal Solana lending-risk monitor (connect wallet →
+health factors on MarginFi/Kamino/perps). That code still runs and stays as the
+account layer, but it is no longer the product.
+
+### Architecture (two layers)
+- **Public layer** (anonymous, no wallet) — the daily brief + glance tiles,
+  server-rendered so Google can index them. **This is V1.**
+- **Personal layer** (wallet-gated) — portfolio view + future add-ons. The wallet
+  connect is the login/account layer, kept from day one so personal features have
+  something to attach to.
+
+### Guardrails (do not break these)
+- **Honesty bar:** every claim is a fact or a flagged correlation — never a guess
+  dressed as insight, never buy/sell. Say "no clear catalyst" when there isn't one.
+  Keeps us on the information side of the FCA line.
+- **Don't break what runs:** the Express + SQLite + Claude server behind
+  pm2/Cloudflare stays up; new surfaces are built alongside, never bolted onto a
+  working path.
+- **Cleanup protocol:** every step leaves nothing dead behind — removed code,
+  files, deps, DB tables and storage are deleted *and recorded in the Cleanup
+  Ledger*. No orphans, no "temporarily commented out".
+
+### Status: ✅ done · 🔨 in progress · ⏳ next · 💤 parked · 🗑️ removed
+
+- ✅ **P0 — Baseline back up.** Server rebuilt (better-sqlite3 for Node 24), live on :3001 behind Cloudflare.
+- ⏳ **P1 — One brief page (keystone).** Server-render `/brief/today` from free live signals (CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed) → Claude synthesis (honesty bar) → real HTML. Proves SSR + synthesis + honesty.
+- ⏳ **P2 — Prove indexing.** Google Search Console; submit the brief page; confirm it indexes before scaling.
+- ⏳ **P3 — Glance + archive.** Six tiles + every day's brief saved as a permanent indexable page.
+- ⏳ **P4 — Signal depth.** Macro-calendar JSON (known dates), whale flows, unlocks, funding; liquidations once a source is chosen.
+- 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
+- 💤 **P6 — Premium tier.** Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
+
+### Cleanup Ledger
+_Record every removal here so nothing is silently orphaned._
+- _(nothing removed yet — all current code still runs)_
+
+### Daily Log
+- **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
+
+---
+
 ## What it does
 
 Most DeFi dashboards give you a number and nothing else. Vrynn pulls your active positions across MarginFi, Kamino, and Jupiter/Drift perps, classifies the risk based on your actual position type, and lets you run an AI analysis that explains *why* your position sits at that risk level — factoring in collateral composition, borrow structure, and price trends.
