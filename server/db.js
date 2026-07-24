@@ -80,6 +80,14 @@ db.exec(`
     calls_today    INTEGER NOT NULL DEFAULT 0,
     reset_date     TEXT    NOT NULL DEFAULT (date('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS daily_briefs (
+    date         TEXT    PRIMARY KEY,
+    signals_json TEXT    NOT NULL,
+    brief_text   TEXT,
+    html         TEXT    NOT NULL,
+    created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+  );
 `);
 
 // Migrate existing DBs that predate perp_critical_pct column
@@ -273,6 +281,18 @@ export function claimLinkCode(rawCode) {
 
   db.prepare(`DELETE FROM telegram_link_codes WHERE code = ?`).run(code);
   return row.wallet_address;
+}
+
+// ── daily_briefs ───────────────────────────────────────────────────────────
+export function saveDailyBrief({ date, signals, briefText, html }) {
+  db.prepare(`
+    INSERT OR REPLACE INTO daily_briefs(date, signals_json, brief_text, html)
+    VALUES(?, ?, ?, ?)
+  `).run(date, JSON.stringify(signals), briefText ?? null, html);
+}
+
+export function getDailyBrief(date) {
+  return db.prepare(`SELECT * FROM daily_briefs WHERE date = ?`).get(date) ?? null;
 }
 
 export default db;

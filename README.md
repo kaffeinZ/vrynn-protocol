@@ -42,9 +42,9 @@ account layer, but it is no longer the product.
 ### Status: ✅ done · 🔨 in progress · ⏳ next · 💤 parked · 🗑️ removed
 
 - ✅ **P0 — Baseline back up.** Server rebuilt (better-sqlite3 for Node 24), live on :3001 behind Cloudflare.
-- ⏳ **P1 — One brief page (keystone).** Server-render `/brief/today` from free live signals (CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed) → Claude synthesis (honesty bar) → real HTML. Proves SSR + synthesis + honesty.
-- ⏳ **P2 — Prove indexing.** Google Search Console; submit the brief page; confirm it indexes before scaling.
-- ⏳ **P3 — Glance + archive.** Six tiles + every day's brief saved as a permanent indexable page.
+- ✅ **P1 — One brief page (keystone).** `server/brief.js` + route at `/brief/today`. Server-rendered HTML from CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed → LLM synthesis (honesty bar) → real crawlable HTML. Verified: SSR ✅, synthesis ✅, honesty bar held on a no-catalyst day ("no clear catalyst is evident in today's inputs"). One model call per UTC day, cached in memory.
+- 🔨 **P2 — Prove indexing.** `/brief/:date` permanent dated URLs live (saved to `daily_briefs` DB table). `robots.txt` fixed. Indexing request submitted to Google Search Console — awaiting confirmation.
+- ⏳ **P3 — Glance + archive.** Six stat tiles on the brief page + archive index listing all past briefs.
 - ⏳ **P4 — Signal depth.** Macro-calendar JSON (known dates), whale flows, unlocks, funding; liquidations once a source is chosen.
 - 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
 - 💤 **P6 — Premium tier.** Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
@@ -55,6 +55,8 @@ _Record every removal here so nothing is silently orphaned._
 
 ### Daily Log
 - **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
+- **2026-07-22** — AI model default → `deepseek/deepseek-v4-flash` (config.js:10, one swappable line). Built P1: `server/brief.js` + `/brief/today` route, server-rendered HTML, honesty prompt verified on a flat no-catalyst day. Existing dashboard/wallet/API untouched.
+- **2026-07-24** — P2/P3 core: `daily_briefs` DB table added; briefs saved on generation and served by date at `/brief/:date`; `robots.txt` fixed (was serving SPA index.html via Cloudflare managed append); indexing request submitted to Google Search Console.
 
 ---
 
