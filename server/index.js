@@ -5,7 +5,8 @@ import routes from './api/routes.js';
 import { bot } from './alerts.js';
 import { startMonitor } from './monitor.js';
 import rateLimit from 'express-rate-limit';
-import { getBriefHtml } from './brief.js';
+import { getBriefHtml, renderArchive } from './brief.js';
+import { getAllBriefs } from './db.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -34,6 +35,23 @@ app.get('/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n\nSitemap: https://vrynn.xyz/sitemap.xml\n');
+});
+
+// ── Homepage → today's brief ───────────────────────────────────────────────
+app.get('/', async (_req, res) => {
+  try {
+    const html = await getBriefHtml();
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('[brief] homepage render failed:', err.message);
+    res.status(503).type('text/plain').send('Brief temporarily unavailable.');
+  }
+});
+
+// ── Brief archive ──────────────────────────────────────────────────────────
+app.get('/brief', (_req, res) => {
+  const briefs = getAllBriefs();
+  res.type('html').send(renderArchive(briefs));
 });
 
 // ── Daily brief (server-rendered HTML, no wallet, anonymous) ────────────────

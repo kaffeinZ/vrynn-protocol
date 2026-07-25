@@ -19,4 +19,6 @@ export const config = {
   xAccessToken:       process.env.X_ACCESS_TOKEN,
   xAccessTokenSecret: process.env.X_ACCESS_TOKEN_SECRET,
   adminSecret:        process.env.ADMIN_SECRET,
+  fredApiKey:         process.env.FRED_API_KEY,
+  coinalyzeApiKey:    process.env.COINALYZE_API_KEY,
 };

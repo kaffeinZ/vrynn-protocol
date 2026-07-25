@@ -43,9 +43,13 @@ account layer, but it is no longer the product.
 
 - ✅ **P0 — Baseline back up.** Server rebuilt (better-sqlite3 for Node 24), live on :3001 behind Cloudflare.
 - ✅ **P1 — One brief page (keystone).** `server/brief.js` + route at `/brief/today`. Server-rendered HTML from CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed → LLM synthesis (honesty bar) → real crawlable HTML. Verified: SSR ✅, synthesis ✅, honesty bar held on a no-catalyst day ("no clear catalyst is evident in today's inputs"). One model call per UTC day, cached in memory.
-- 🔨 **P2 — Prove indexing.** `/brief/:date` permanent dated URLs live (saved to `daily_briefs` DB table). `robots.txt` fixed. Indexing request submitted to Google Search Console — awaiting confirmation.
-- ⏳ **P3 — Glance + archive.** Six stat tiles on the brief page + archive index listing all past briefs.
-- ⏳ **P4 — Signal depth.** Macro-calendar JSON (known dates), whale flows, unlocks, funding; liquidations once a source is chosen.
+- ⏳ **P2 — Prove indexing.** `/brief/:date` permanent dated URLs live (saved to `daily_briefs` DB table). `robots.txt` fixed. Homepage (`/`) now serves today's brief — dashboard moved to `/app`. Indexing request submitted 2026-07-24 — awaiting Google confirmation.
+- ✅ **P3 — Glance + archive.** Archive index at `/brief` done. Six stat tiles on brief page done (market cap, BTC, ETH, SOL, dominance, Fear & Greed — in `renderBrief` since P1). `drivers` transparency layer deferred to P4 — depends on structured JSON output from the redesigned synthesis prompt.
+- 🔨 **P4 — Signal depth + synthesis redesign.**
+  1. ✅ Validated synthesis prompt against live `market_state` — structured JSON output, 3-tier claim tagging, honesty bar confirmed.
+  2. ✅ Wired Coinalyze (funding rates + open interest), FRED (CPI, Fed Funds, 10Y yield), ForexFactory (macro calendar), CoinTelegraph + Decrypt RSS (news). CryptoPanic dropped (free tier discontinued Apr 2026).
+  3. ✅ Replaced ad-hoc prompting with `market_state` → structured synthesis: `drivers` array + `explained` field. Stored in DB. Drivers transparency section rendered on brief page.
+  4. ⏳ Liquidations tile (no free source found — Coinalyze history is paid, CoinGlass unreliable). Macro tile. Whale flows + unlocks deferred.
 - 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
 - 💤 **P6 — Premium tier.** Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
 
@@ -57,6 +61,7 @@ _Record every removal here so nothing is silently orphaned._
 - **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
 - **2026-07-22** — AI model default → `deepseek/deepseek-v4-flash` (config.js:10, one swappable line). Built P1: `server/brief.js` + `/brief/today` route, server-rendered HTML, honesty prompt verified on a flat no-catalyst day. Existing dashboard/wallet/API untouched.
 - **2026-07-24** — P2/P3 core: `daily_briefs` DB table added; briefs saved on generation and served by date at `/brief/:date`; `robots.txt` fixed (was serving SPA index.html via Cloudflare managed append); indexing request submitted to Google Search Console.
+- **2026-07-25** — P2 follow-up: homepage (`/`) serves today's brief; dashboard moved to `/app`; archive at `/brief` done. P3 complete. P4 steps 1–3: synthesis prompt validated; Coinalyze (funding + OI), FRED (CPI/Fed Funds/10Y), ForexFactory, CoinTelegraph + Decrypt RSS wired into `market_state`; structured synthesis output (drivers + explained) live and stored in DB; drivers transparency section rendered on brief page.
 
 ---
 

@@ -95,6 +95,10 @@ try {
   db.prepare(`ALTER TABLE wallet_settings ADD COLUMN perp_critical_pct REAL NOT NULL DEFAULT 5`).run();
 } catch { /* column already exists */ }
 
+// Migrate daily_briefs for P4 structured synthesis output
+try { db.prepare(`ALTER TABLE daily_briefs ADD COLUMN drivers_json TEXT`).run(); } catch {}
+try { db.prepare(`ALTER TABLE daily_briefs ADD COLUMN explained TEXT`).run(); } catch {}
+
 // ── users ──────────────────────────────────────────────────────────────────
 export function upsertUser(telegramId) {
   return db
@@ -284,15 +288,19 @@ export function claimLinkCode(rawCode) {
 }
 
 // ── daily_briefs ───────────────────────────────────────────────────────────
-export function saveDailyBrief({ date, signals, briefText, html }) {
+export function saveDailyBrief({ date, signals, briefText, html, drivers, explained }) {
   db.prepare(`
-    INSERT OR REPLACE INTO daily_briefs(date, signals_json, brief_text, html)
-    VALUES(?, ?, ?, ?)
-  `).run(date, JSON.stringify(signals), briefText ?? null, html);
+    INSERT OR REPLACE INTO daily_briefs(date, signals_json, brief_text, html, drivers_json, explained)
+    VALUES(?, ?, ?, ?, ?, ?)
+  `).run(date, JSON.stringify(signals), briefText ?? null, html, drivers ? JSON.stringify(drivers) : null, explained ?? null);
 }
 
 export function getDailyBrief(date) {
   return db.prepare(`SELECT * FROM daily_briefs WHERE date = ?`).get(date) ?? null;
+}
+
+export function getAllBriefs() {
+  return db.prepare(`SELECT date, brief_text FROM daily_briefs ORDER BY date DESC`).all();
 }
 
 export default db;
