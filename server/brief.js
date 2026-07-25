@@ -287,18 +287,25 @@ export function renderBrief(signals, synthesis) {
     ? `<p class="brief-headline">${esc(synthesis.headline)}</p>`
     : '';
 
+  const explainedLabels = {
+    'well-explained':   'Drivers identified',
+    'partly-explained': 'Partly explained',
+    'unexplained':      'No clear catalyst',
+  };
+  const driverTypeLabels = { fact: 'Fact', coincidence: 'Timing', unknown: 'No driver' };
+
   // Explained badge
   const explainedHtml = synthesis?.explained
-    ? `<span class="explained explained--${synthesis.explained}">${synthesis.explained.replace(/-/g, ' ')}</span>`
+    ? `<span class="explained explained--${synthesis.explained}">${explainedLabels[synthesis.explained] ?? synthesis.explained}</span>`
     : '';
 
   // Drivers transparency section
   const driversHtml = synthesis?.drivers?.length
     ? `<div class="drivers">
-        <div class="drivers-label">What the data shows</div>
+        <div class="drivers-label">How we read this move</div>
         ${synthesis.drivers.map(d => `
         <div class="driver">
-          <span class="driver-tag driver-tag--${esc(d.type)}">${esc(d.type)}</span>
+          <span class="driver-tag driver-tag--${esc(d.type)}">${driverTypeLabels[d.type] ?? d.type}</span>
           <span class="driver-claim">${esc(d.claim)}</span>
         </div>`).join('')}
       </div>`
@@ -356,9 +363,8 @@ export function renderBrief(signals, synthesis) {
 </head>
 <body>
   <div class="wrap">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
       <a class="brand" href="/">Vrynn</a>
-      <a href="/app" style="color:var(--muted);text-decoration:none;font-size:13px;">Portfolio →</a>
     </div>
     <div class="date"><a href="/brief" style="color:var(--muted);text-decoration:none;font-size:13px;text-transform:uppercase;letter-spacing:.08em;">← All briefs</a> &nbsp;·&nbsp; ${esc(prettyDate)}</div>
     <h1>Why is crypto ${esc(dir)} today?</h1>
