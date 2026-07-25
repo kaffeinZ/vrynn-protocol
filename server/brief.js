@@ -248,6 +248,7 @@ const fmtUsd = (v) =>
 
 const fmtPct  = (v) => v == null ? 'n/a' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 const dirClass = (v) => v == null ? '' : v >= 0 ? 'up' : 'down';
+const fmtOi   = (v) => v == null ? 'n/a' : v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : String(Math.round(v));
 
 // ── renderBrief ──────────────────────────────────────────────────────────────
 
@@ -380,6 +381,18 @@ export function renderBrief(signals, synthesis) {
       ${tile('Solana',    fmtUsd(sol.price_usd), `${fmtPct(sol.change_24h_pct)} 24h`, dirClass(sol.change_24h_pct))}
       ${tile('BTC dominance', mc.btc_dominance_pct == null ? 'n/a' : `${mc.btc_dominance_pct.toFixed(1)}%`, mc.eth_dominance_pct == null ? '' : `ETH ${mc.eth_dominance_pct.toFixed(1)}%`)}
       ${tile('Fear & Greed',  fg ? String(fg.fear_greed_value) : 'n/a', fg ? fg.fear_greed_label : '')}
+      ${(() => {
+        const btcOi = signals.open_interest?.BTC?.contracts;
+        const ethOi = signals.open_interest?.ETH?.contracts;
+        return tile('Open interest', btcOi != null ? `${fmtOi(btcOi)} BTC` : 'n/a', ethOi != null ? `ETH ${fmtOi(ethOi)}` : '');
+      })()}
+      ${(() => {
+        const events = signals.macro_today ?? [];
+        const top = events.find(e => e.importance === 'high') ?? events[0] ?? null;
+        const label = top ? (top.event.length > 22 ? top.event.slice(0, 20) + '…' : top.event) : 'Quiet';
+        const sub   = top ? `${top.currency} · ${top.status}` : 'No high-impact events';
+        return tile('Macro today', label, sub);
+      })()}
     </div>
 
     <div class="read">

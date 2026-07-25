@@ -45,11 +45,11 @@ account layer, but it is no longer the product.
 - ✅ **P1 — One brief page (keystone).** `server/brief.js` + route at `/brief/today`. Server-rendered HTML from CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed → LLM synthesis (honesty bar) → real crawlable HTML. Verified: SSR ✅, synthesis ✅, honesty bar held on a no-catalyst day ("no clear catalyst is evident in today's inputs"). One model call per UTC day, cached in memory.
 - ⏳ **P2 — Prove indexing.** `/brief/:date` permanent dated URLs live (saved to `daily_briefs` DB table). `robots.txt` fixed. Homepage (`/`) now serves today's brief — dashboard moved to `/app`. Indexing request submitted 2026-07-24 — awaiting Google confirmation.
 - ✅ **P3 — Glance + archive.** Archive index at `/brief` done. Six stat tiles on brief page done (market cap, BTC, ETH, SOL, dominance, Fear & Greed — in `renderBrief` since P1). `drivers` transparency layer deferred to P4 — depends on structured JSON output from the redesigned synthesis prompt.
-- 🔨 **P4 — Signal depth + synthesis redesign.**
+- ✅ **P4 — Signal depth + synthesis redesign.**
   1. ✅ Validated synthesis prompt against live `market_state` — structured JSON output, 3-tier claim tagging, honesty bar confirmed.
   2. ✅ Wired Coinalyze (funding rates + open interest), FRED (CPI, Fed Funds, 10Y yield), ForexFactory (macro calendar), CoinTelegraph + Decrypt RSS (news). CryptoPanic dropped (free tier discontinued Apr 2026).
   3. ✅ Replaced ad-hoc prompting with `market_state` → structured synthesis: `drivers` array + `explained` field. Stored in DB. Drivers transparency section rendered on brief page.
-  4. ⏳ Liquidations tile (no free source found — Coinalyze history is paid, CoinGlass unreliable). Macro tile. Whale flows + unlocks deferred.
+  4. ✅ Open interest tile (BTC + ETH from Coinalyze — replaces liquidations, no free aggregate source exists). Macro today tile (ForexFactory). Whale flows + unlocks deferred.
 - 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
 - 💤 **P6 — Premium tier.** Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
 
