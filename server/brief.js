@@ -371,13 +371,25 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
 <link rel="canonical" href="https://vrynn.xyz/brief/${esc(signals.date)}">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
 <style>
-  :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --card:#fafafa; --up:#0a8f4d; --down:#d81b60; }
+  /* Neutrals carry a slight blue cast — pure #fff/#111 reads flat and unfinished. */
+  :root { --bg:#fcfcfd; --fg:#0f1115; --muted:#5b6070; --line:#e6e7ec; --card:#f7f8fa;
+          --up:#0a8f4d; --down:#d81b60; --a1:#00c8e0; --a2:#7000e0; --wash:.10;
+          --shadow:0 1px 2px rgba(15,17,21,.04), 0 10px 28px rgba(15,17,21,.06); }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#0d0d0f; --fg:#f2f2f2; --muted:#9a9a9a; --line:#26262b; --card:#16161a; --up:#2ecc71; --down:#ff4d8d; }
+    :root { --bg:#0b0c10; --fg:#eef0f4; --muted:#9aa0b0; --line:#23252d; --card:#14161c;
+            --up:#2ecc71; --down:#ff4d8d; --a1:#22d3ee; --a2:#a855f7; --wash:.16;
+            --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); }
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg);
+  body { margin:0; background:var(--bg); color:var(--fg); position:relative;
          font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  /* Soft aurora behind the top of the page — depth without decoration. */
+  body::before { content:''; position:absolute; top:0; left:0; right:0; height:640px;
+    z-index:-1; pointer-events:none;
+    background:radial-gradient(900px 420px at 10% -10%, rgba(0,200,224,var(--wash)), transparent 60%),
+               radial-gradient(780px 380px at 90% -6%,  rgba(112,0,224,var(--wash)), transparent 62%); }
+  .grad { background:linear-gradient(90deg,var(--a1),var(--a2)); -webkit-background-clip:text;
+          background-clip:text; color:transparent; }
   .wrap { max-width:1100px; margin:0 auto; padding:40px 20px 64px; }
   /* Reading column — capped for line length, left-aligned inside the wider page.
      The space this leaves on the right is where the archive/subscribe rail goes. */
@@ -403,8 +415,11 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
                  margin:10px 0 14px; max-width:22ch; }
   .landing-sub { font-size:clamp(16px,1.9vw,18.5px); color:var(--muted); max-width:54ch;
                  margin:0 0 20px; line-height:1.55; }
-  .today-card  { background:var(--card); border:1px solid var(--line); border-radius:12px;
-                 padding:18px 20px; }
+  .today-card  { position:relative; overflow:hidden; background:var(--bg);
+                 border:1px solid var(--line); border-radius:14px;
+                 padding:20px; box-shadow:var(--shadow); }
+  .today-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px;
+                        background:linear-gradient(90deg,var(--a1),var(--a2)); }
   .today-label { font-size:11px; color:var(--muted); text-transform:uppercase;
                  letter-spacing:.07em; margin-bottom:11px; }
   .today-cap   { font-size:27px; font-weight:800; letter-spacing:-.02em; line-height:1.1; }
@@ -412,16 +427,22 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
   .today-badge { margin-top:13px; }
   .today-note  { font-size:12.5px; color:var(--muted); margin:13px 0 0; padding-top:12px;
                  border-top:1px solid var(--line); line-height:1.5; }
-  .landing-cta { display:inline-block; font-size:14px; font-weight:600; text-decoration:none;
-                 color:var(--fg); background:var(--card); border:1px solid var(--line);
-                 border-radius:8px; padding:10px 17px; }
-  .landing-cta:hover { border-color:var(--muted); }
+  .landing-cta { display:inline-block; font-size:14px; font-weight:650; text-decoration:none;
+                 color:#fff; background:linear-gradient(90deg,var(--a1),var(--a2)); border:0;
+                 border-radius:9px; padding:12px 20px;
+                 box-shadow:0 6px 18px rgba(112,0,224,.24);
+                 transition:transform .15s ease, box-shadow .15s ease, filter .15s ease; }
+  .landing-cta:hover { filter:brightness(1.07); transform:translateY(-1px);
+                       box-shadow:0 10px 24px rgba(112,0,224,.3); }
   .points  { display:grid; grid-template-columns:1fr; gap:26px; margin-top:44px; }
   @media (min-width:820px) { .points { grid-template-columns:repeat(3,1fr); gap:34px; } }
   .point-t { font-size:15px; font-weight:700; margin:0 0 7px; }
+  .point-t::before { content:''; display:block; width:28px; height:3px; border-radius:2px;
+                     margin-bottom:12px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
   .point-d { font-size:14px; color:var(--muted); margin:0; line-height:1.62; }
+  /* Spans the full container so its rule lines up with the tile grid below. */
   .sources { margin-top:38px; padding-top:18px; border-top:1px solid var(--line);
-             font-size:13px; color:var(--muted); max-width:74ch; line-height:1.6; }
+             font-size:13px; color:var(--muted); line-height:1.6; }
   .hero-pill  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
                 padding:2px 7px; border-radius:4px; background:var(--card); border:1px solid var(--line); }
   .date  { color:var(--muted); font-size:13px; margin-top:24px; text-transform:uppercase; letter-spacing:.08em; }
@@ -438,7 +459,10 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
      Explicit counts rather than auto-fit so the grid never leaves an orphan tile. */
   .tiles { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:36px; }
   @media (min-width:760px) { .tiles { grid-template-columns:repeat(4,1fr); } }
-  .tile  { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
+  .tile  { background:var(--card); border:1px solid var(--line); border-radius:11px;
+           padding:15px 16px; min-width:0;
+           transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .tile:hover { transform:translateY(-2px); box-shadow:var(--shadow); border-color:transparent; }
   .tile .value, .tile .sub { overflow-wrap:anywhere; }
   .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
   .value { font-size:20px; font-weight:700; margin-top:4px; }
@@ -446,6 +470,9 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
   .up    { color:var(--up); } .down { color:var(--down); }
   .value.up, .value.down { color:var(--fg); }
   .read p { margin:0 0 16px; }
+  /* Lead paragraph — the standard editorial cue that this is the start of a piece. */
+  .read p:first-child { font-size:18px; line-height:1.6; letter-spacing:-.005em; }
+  .read p:first-child::first-letter { font-size:1.05em; font-weight:600; }
   .unavailable { color:var(--muted); font-style:italic; }
   /* Prose + rail. One column on phones; prose capped at 700px beside the rail
      from 900px up, so the reading measure never stretches with the viewport. */
@@ -453,15 +480,23 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
   @media (min-width:900px) {
     .body { grid-template-columns:minmax(0,700px) minmax(230px,1fr); gap:56px; align-items:start; }
   }
-  .rail { display:flex; flex-direction:column; gap:30px; }
-  .rail-block { min-width:0; }
+  .rail { display:flex; flex-direction:column; gap:20px; }
+  /* Rail blocks read as a distinct column rather than loose text beside the prose. */
+  .rail-block { min-width:0; background:var(--card); border:1px solid var(--line);
+                border-radius:12px; padding:16px 18px; }
   .rail-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em;
-                padding-bottom:9px; margin-bottom:13px; border-bottom:1px solid var(--line); }
+                margin-bottom:13px; }
+  /* Same accent rule as the landing's three points — one visual language. */
+  .rail-label::before { content:''; display:block; width:24px; height:3px; border-radius:2px;
+                        margin-bottom:11px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
   .rail-more  { display:inline-block; margin-top:12px; font-size:12.5px; color:var(--muted); text-decoration:none; }
   .rail-more:hover { text-decoration:underline; }
-  .recent-item { display:block; padding:9px 0; border-bottom:1px solid var(--line);
-                 text-decoration:none; color:inherit; }
+  .recent-item { display:block; padding:9px 8px 9px 0; border-bottom:1px solid var(--line);
+                 text-decoration:none; color:inherit; border-radius:8px;
+                 transition:background .15s ease, padding-left .15s ease; }
+  .recent-item:hover { background:var(--bg); padding-left:8px; }
   .recent-item:last-of-type { border-bottom:0; }
+  .driver:last-child { margin-bottom:0; }
   .recent-date { display:block; font-size:11.5px; color:var(--muted); }
   .recent-line { display:block; font-size:13.5px; line-height:1.45; margin-top:2px; }
   .recent-item:hover .recent-line { text-decoration:underline; }
@@ -485,7 +520,7 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
     <div class="landing">
       <div class="landing-top">
         <div>
-          <h1 class="landing-h">Understand what actually moved crypto today.</h1>
+          <h1 class="landing-h">Understand what <span class="grad">actually</span> moved crypto today.</h1>
           <p class="landing-sub">A daily brief that separates what happened from what merely
             coincided with it — and says so plainly when there is no clear cause.</p>
           <a class="landing-cta" href="#today">Read today's brief ↓</a>
@@ -611,13 +646,22 @@ export function renderArchive(briefs) {
 <link rel="canonical" href="https://vrynn.xyz/brief">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
 <style>
-  :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --card:#fafafa; }
+  /* Same token set as the brief page — the two must not look like different products. */
+  :root { --bg:#fcfcfd; --fg:#0f1115; --muted:#5b6070; --line:#e6e7ec; --card:#f7f8fa;
+          --a1:#00c8e0; --a2:#7000e0; --wash:.10;
+          --shadow:0 1px 2px rgba(15,17,21,.04), 0 10px 28px rgba(15,17,21,.06); }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#0d0d0f; --fg:#f2f2f2; --muted:#9a9a9a; --line:#26262b; --card:#16161a; }
+    :root { --bg:#0b0c10; --fg:#eef0f4; --muted:#9aa0b0; --line:#23252d; --card:#14161c;
+            --a1:#22d3ee; --a2:#a855f7; --wash:.16;
+            --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); }
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg);
+  body { margin:0; background:var(--bg); color:var(--fg); position:relative;
          font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  body::before { content:''; position:absolute; top:0; left:0; right:0; height:520px;
+    z-index:-1; pointer-events:none;
+    background:radial-gradient(900px 400px at 10% -12%, rgba(0,200,224,var(--wash)), transparent 60%),
+               radial-gradient(780px 360px at 90% -8%,  rgba(112,0,224,var(--wash)), transparent 62%); }
   /* Container and type scale intentionally match the brief page. */
   .wrap { max-width:1100px; margin:0 auto; padding:40px 20px 64px; }
   @media (max-width:600px) { .wrap { padding:28px 16px 48px; } }
@@ -632,8 +676,10 @@ export function renderArchive(briefs) {
   /* Index grid — one column on phones, two from tablet up so the page fills out. */
   .entries { display:grid; grid-template-columns:1fr; gap:0 32px; }
   @media (min-width:820px) { .entries { grid-template-columns:1fr 1fr; } }
-  .entry { display:block; padding:15px 0; border-top:1px solid var(--line);
-           text-decoration:none; color:inherit; }
+  .entry { display:block; padding:15px 14px 15px 0; border-top:1px solid var(--line);
+           text-decoration:none; color:inherit; border-radius:10px;
+           transition:background .15s ease, padding-left .15s ease; }
+  .entry:hover { background:var(--card); padding-left:14px; }
   .entry:hover .entry-date { text-decoration:underline; }
   .entry-date    { display:block; font-weight:600; font-size:15px; margin-bottom:3px; }
   .entry-snippet { display:block; color:var(--muted); font-size:14px; line-height:1.5; }
