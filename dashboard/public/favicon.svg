@@ -1,4 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#ffffff"/>
-  <path d="M7 8 L16 24 L25 8" stroke="#8b00ff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <defs>
+    <!-- Light nebula fill. The head itself is the bright object — there is no
+         dark backing plate, so the mark reads on light and dark tab strips alike. -->
+    <linearGradient id="head" x1="6" y1="2" x2="26" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#6fe0ff"/>
+      <stop offset=".45" stop-color="#b49bff"/>
+      <stop offset="1"   stop-color="#7a52d6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Head fills the tile: at 16px the silhouette is the mark. -->
+  <path d="M16 1.4 C 22.9 1.4, 26.9 6.4, 26.7 13.6
+           C 26.5 21.6, 21.4 29.5, 16 31.1
+           C 10.6 29.5, 5.5 21.6, 5.3 13.6
+           C 5.1 6.4, 9.1 1.4, 16 1.4 Z"
+        fill="url(#head)"/>
+
+  <!-- Eyes as dark cut-outs — the one detail that survives 16px. -->
+  <path d="M7.8 11.2 C 11.0 7.9, 14.0 10.2, 15.5 16.4
+           C 12.4 16.2, 9.4 14.6, 7.8 11.2 Z" fill="#1b1033"/>
+  <path d="M24.2 11.2 C 21.0 7.9, 18.0 10.2, 16.5 16.4
+           C 19.6 16.2, 22.6 14.6, 24.2 11.2 Z" fill="#1b1033"/>
 </svg>

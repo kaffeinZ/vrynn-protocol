@@ -98,6 +98,7 @@ try {
 // Migrate daily_briefs for P4 structured synthesis output
 try { db.prepare(`ALTER TABLE daily_briefs ADD COLUMN drivers_json TEXT`).run(); } catch {}
 try { db.prepare(`ALTER TABLE daily_briefs ADD COLUMN explained TEXT`).run(); } catch {}
+try { db.prepare(`ALTER TABLE daily_briefs ADD COLUMN headline TEXT`).run(); } catch {}
 
 // ── users ──────────────────────────────────────────────────────────────────
 export function upsertUser(telegramId) {
@@ -288,11 +289,12 @@ export function claimLinkCode(rawCode) {
 }
 
 // ── daily_briefs ───────────────────────────────────────────────────────────
-export function saveDailyBrief({ date, signals, briefText, html, drivers, explained }) {
+export function saveDailyBrief({ date, signals, briefText, html, drivers, explained, headline }) {
   db.prepare(`
-    INSERT OR REPLACE INTO daily_briefs(date, signals_json, brief_text, html, drivers_json, explained)
-    VALUES(?, ?, ?, ?, ?, ?)
-  `).run(date, JSON.stringify(signals), briefText ?? null, html, drivers ? JSON.stringify(drivers) : null, explained ?? null);
+    INSERT OR REPLACE INTO daily_briefs(date, signals_json, brief_text, html, drivers_json, explained, headline)
+    VALUES(?, ?, ?, ?, ?, ?, ?)
+  `).run(date, JSON.stringify(signals), briefText ?? null, html,
+         drivers ? JSON.stringify(drivers) : null, explained ?? null, headline ?? null);
 }
 
 export function getDailyBrief(date) {
@@ -300,7 +302,16 @@ export function getDailyBrief(date) {
 }
 
 export function getAllBriefs() {
-  return db.prepare(`SELECT date, brief_text FROM daily_briefs ORDER BY date DESC`).all();
+  return db.prepare(`SELECT date, brief_text, headline, explained FROM daily_briefs ORDER BY date DESC`).all();
+}
+
+/** Briefs published before `date` — powers the "recent briefs" rail.
+ *  Older-only, so a stored page's rail can never go stale. */
+export function getRecentBriefs(beforeDate, limit = 5) {
+  return db.prepare(`
+    SELECT date, headline, brief_text FROM daily_briefs
+    WHERE date < ? ORDER BY date DESC LIMIT ?
+  `).all(beforeDate, limit);
 }
 
 export default db;

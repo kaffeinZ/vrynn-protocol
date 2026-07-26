@@ -1,11 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { config } from './config.js';
 import routes from './api/routes.js';
 import { bot } from './alerts.js';
 import { startMonitor } from './monitor.js';
 import rateLimit from 'express-rate-limit';
-import { getBriefHtml, renderArchive } from './brief.js';
+import { getBriefHtml, getHomepageHtml, renderArchive } from './brief.js';
 import { getAllBriefs } from './db.js';
 
 const app = express();
@@ -37,10 +40,20 @@ app.get('/robots.txt', (_req, res) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n\nSitemap: https://vrynn.xyz/sitemap.xml\n');
 });
 
+// Nginx proxies `/` here, so a static favicon under dashboard/ never resolves.
+// Read once at boot and serve it directly — covers the brief pages and /app alike.
+const FAVICON = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../dashboard/public/favicon.svg'),
+  'utf-8',
+);
+app.get('/favicon.svg', (_req, res) => {
+  res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(FAVICON);
+});
+
 // ── Homepage → today's brief ───────────────────────────────────────────────
 app.get('/', async (_req, res) => {
   try {
-    const html = await getBriefHtml();
+    const html = await getHomepageHtml();
     res.type('html').send(html);
   } catch (err) {
     console.error('[brief] homepage render failed:', err.message);

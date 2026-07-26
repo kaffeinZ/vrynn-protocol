@@ -55,13 +55,16 @@ account layer, but it is no longer the product.
 
 ### Cleanup Ledger
 _Record every removal here so nothing is silently orphaned._
-- _(nothing removed yet — all current code still runs)_
+- **2026-07-25** — Deleted 3 orphaned React components with zero importers: `dashboard/src/components/AlertHistory.jsx`, `MarketsPanel.jsx`, `TelegramLink.jsx`. Verified unreferenced by grep before removal; dashboard build re-run clean after. No deps, DB tables, or routes removed alongside — `useMarkets` still has other importers.
+- **2026-07-26** — Deleted `dashboard/public/favicon-v2.svg`. Two favicons existed; `index.html` referenced v2 and `favicon.svg` was orphaned. New mark written to the canonical `favicon.svg`, all references repointed, v2 removed. Dashboard rebuilt (`dist/` no longer carries it) and `/favicon-v2.svg` confirmed 404.
+- _Known follow-ups (not yet removed, still wired):_ the Telegram flow is disabled at `server/index.js` (`startBot()`/`startMonitor()` not called) but `telegram_link_codes` table + `createLinkCode`/`claimLinkCode` in `db.js` remain. Old protocol dashboard (`server/protocols/*`, `PositionCard`, `useVrynn`, etc.) is **live**, not dead — it is removed in P5 when the new portfolio view replaces it.
 
 ### Daily Log
 - **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
 - **2026-07-22** — AI model default → `deepseek/deepseek-v4-flash` (config.js:10, one swappable line). Built P1: `server/brief.js` + `/brief/today` route, server-rendered HTML, honesty prompt verified on a flat no-catalyst day. Existing dashboard/wallet/API untouched.
 - **2026-07-24** — P2/P3 core: `daily_briefs` DB table added; briefs saved on generation and served by date at `/brief/:date`; `robots.txt` fixed (was serving SPA index.html via Cloudflare managed append); indexing request submitted to Google Search Console.
-- **2026-07-25** — P2 follow-up: homepage (`/`) serves today's brief; dashboard moved to `/app`; archive at `/brief` done. P3 complete. P4 steps 1–3: synthesis prompt validated; Coinalyze (funding + OI), FRED (CPI/Fed Funds/10Y), ForexFactory, CoinTelegraph + Decrypt RSS wired into `market_state`; structured synthesis output (drivers + explained) live and stored in DB; drivers transparency section rendered on brief page.
+- **2026-07-25** — P2 follow-up: homepage (`/`) serves today's brief; dashboard moved to `/app`; archive at `/brief` done. P3 complete. P4 steps 1–3: synthesis prompt validated; Coinalyze (funding + OI), FRED (CPI/Fed Funds/10Y), ForexFactory, CoinTelegraph + Decrypt RSS wired into `market_state`; structured synthesis output (drivers + explained) live and stored in DB; drivers transparency section rendered on brief page. P4 closed with OI + macro tiles (8 total) and visitor-facing tag labels.
+- **2026-07-26** — Landing pass. Hero block added above the brief (states what Vrynn is + teaches the Fact/Timing/No driver vocabulary before the tags appear below). Layout widened to 1100px: tiles full width at an explicit 2→4 column grid (`auto-fit` was leaving an orphan 8th tile), prose capped at 700px beside a new right rail holding "How we read this move" + recent briefs. Archive aligned to the same container, hero and type scale; entries now a 2-up grid with an explained badge. **Bug fixed:** archive snippets were split on `/[.!?]/`, so every summary truncated at the first decimal ("market cap rose 0."). Now stores the synthesis `headline` (new `daily_briefs.headline` column) and falls back to a decimal-safe splitter for pre-existing rows.
 
 ---
 
