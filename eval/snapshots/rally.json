@@ -1,0 +1,328 @@
+{
+  "date": "2026-07-31",
+  "as_of_utc": "2026-07-31T00:29:52.429Z",
+  "market": {
+    "total_market_cap_usd": 2294125299299.403,
+    "total_market_cap_change_24h_pct": 1.5269214369542008,
+    "btc_dominance_pct": 56.594212099606445,
+    "eth_dominance_pct": 10.074927922982578
+  },
+  "assets": {
+    "BTC": {
+      "price_usd": 64716,
+      "change_24h_pct": 1.246563194519005
+    },
+    "ETH": {
+      "price_usd": 1916.08,
+      "change_24h_pct": 0.38906342357443535
+    },
+    "SOL": {
+      "price_usd": 74.5,
+      "change_24h_pct": 1.0697560249857418
+    }
+  },
+  "sentiment": {
+    "fear_greed_value": 25,
+    "fear_greed_label": "Extreme Fear"
+  },
+  "liquidations_24h": null,
+  "macro_today": [
+    {
+      "time_utc": "02:30",
+      "event": "BOJ Policy Rate",
+      "currency": "JPY",
+      "importance": "high",
+      "actual": null,
+      "forecast": "<1.00%",
+      "previous": "<1.00%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "02:30",
+      "event": "Monetary Policy Statement",
+      "currency": "JPY",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "02:31",
+      "event": "BOJ Outlook Report",
+      "currency": "JPY",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "05:30",
+      "event": "BOJ Press Conference",
+      "currency": "JPY",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "09:00",
+      "event": "Core CPI Flash Estimate y/y",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "2.4%",
+      "previous": "2.4%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "09:00",
+      "event": "CPI Flash Estimate y/y",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "2.9%",
+      "previous": "2.8%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "GDP m/m",
+      "currency": "CAD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "0.2%",
+      "previous": "0.5%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Employment Cost Index q/q",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "0.8%",
+      "previous": "0.9%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "14:00",
+      "event": "Revised UoM Consumer Sentiment",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "53.9",
+      "previous": "54.4",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "14:00",
+      "event": "Revised UoM Inflation Expectations",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": null,
+      "previous": "4.2%",
+      "status": "scheduled"
+    }
+  ],
+  "macro_recent_24h": [
+    {
+      "time_utc": "06:29",
+      "event": "German Prelim CPI m/m",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "0.7%",
+      "previous": "-0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "08:00",
+      "event": "German Prelim GDP q/q",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "0.1%",
+      "previous": "0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "BOE Monetary Policy Report",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "Monetary Policy Summary",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "MPC Official Bank Rate Votes",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": "2-0-7",
+      "previous": "2-0-7",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "Official Bank Rate",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": "3.75%",
+      "previous": "3.75%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:00",
+      "event": "BOE Gov Bailey Speaks",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Advance GDP q/q",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "2.1%",
+      "previous": "2.0%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Core PCE Price Index m/m",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "0.2%",
+      "previous": "0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Advance GDP Price Index q/q",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "4.1%",
+      "previous": "3.6%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Unemployment Claims",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "201K",
+      "previous": "187K",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "23:30",
+      "event": "Tokyo Core CPI y/y",
+      "currency": "JPY",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "1.8%",
+      "previous": "1.6%",
+      "status": "scheduled"
+    }
+  ],
+  "news": [
+    {
+      "title": "US Senators sent revised ethics rules to White House for CLARITY Act: Report",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-30T22:59:52.429Z"
+    },
+    {
+      "title": "Strategy posts $8.2B Q2 loss as Bitcoin slump drives unrealized losses",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-30T21:29:52.429Z"
+    },
+    {
+      "title": "World Cup generated $20B in blockchain prediction market volume: Chainalysis",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-30T19:59:52.429Z"
+    },
+    {
+      "title": "Coinbase Q2 profit misses estimates despite record crypto market share",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-30T18:29:52.429Z"
+    },
+    {
+      "title": "Coinbase Misses on Q2 Earnings as Crypto Trading Activity Slows",
+      "source": "Decrypt",
+      "published_utc": "2026-07-30T16:59:52.429Z"
+    },
+    {
+      "title": "Treasury Secretary Invokes Bitcoin Creator Satoshi Nakamoto in Plea for Clarity Act",
+      "source": "Decrypt",
+      "published_utc": "2026-07-30T15:29:52.429Z"
+    },
+    {
+      "title": "Researchers Tried Letting AI Do Science. It Failed",
+      "source": "Decrypt",
+      "published_utc": "2026-07-30T13:59:52.429Z"
+    },
+    {
+      "title": "Bitcoin Quantum Threat Inches Closer as IBM Claims &#39;Trusted Quantum Advantage&#39;",
+      "source": "Decrypt",
+      "published_utc": "2026-07-30T12:29:52.429Z"
+    }
+  ],
+  "funding_rates": {
+    "BTC": {
+      "rate_8h": 0.01,
+      "annualized_pct": 1095
+    },
+    "ETH": {
+      "rate_8h": 0.005729,
+      "annualized_pct": 627.33
+    }
+  },
+  "open_interest": {
+    "BTC": {
+      "contracts": 106791.797
+    },
+    "ETH": {
+      "contracts": 2331001.928
+    }
+  },
+  "fred": {
+    "cpi": {
+      "date": "2026-06-01",
+      "value": 332.568,
+      "prev_value": 333.979
+    },
+    "fed_funds_rate": {
+      "date": "2026-06-01",
+      "value": 3.63
+    },
+    "yield_10y": {
+      "date": "2026-07-29",
+      "value": 4.67
+    }
+  }
+}

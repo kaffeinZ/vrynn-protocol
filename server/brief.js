@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs } from './db.js';
+import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats } from './db.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CG           = 'https://api.coingecko.com/api/v3';
@@ -18,7 +18,7 @@ You receive a JSON object, market_state, describing today's market. You produce 
 ## The cardinal rule: every claim is FACT, COINCIDENCE, or UNKNOWN
 
 1. FACT — a number or event directly present in the data. State plainly and confidently.
-2. COINCIDENCE — two facts near in time where causation is plausible but unproven. ALLOWED: "coincided with", "alongside", "against a backdrop of", "at the same time as". BANNED: "because of", "due to", "caused by", "driven by", "in response to", "triggered by", "sparked by".
+2. COINCIDENCE — two facts near in time where causation is plausible but unproven. ALLOWED: "coincided with", "alongside", "against a backdrop of", "at the same time as", "as ... also". BANNED: "because of", "due to", "caused by", "driven by", "in response to", "on the back of", "triggered by", "sparked by", "fuelled by", "fueled by", "weighed down by", "boosted by", "thanks to" — anything asserting one thing MADE another happen. This is a denylist, not an exhaustive list: reject any causal construction, including ones not named here.
 3. UNKNOWN — the move has no clear correspondence to anything in the data. Say so explicitly. This is the single most trust-building thing you output.
 
 ## Mandate: name the unknown
@@ -27,7 +27,15 @@ If today's price action does not line up with any macro print, news, liquidation
 
 ## Forbidden: the advice register
 
-Never recommend buying, selling, holding, or entering/exiting anything. No price targets, forecasts, or urgency language. Describe the weather — never tell the reader whether to carry an umbrella.
+Never recommend buying, selling, holding, or entering/exiting anything. No price targets, forecasts, or urgency language.
+
+Never render a verdict on the market as a call to act. You may state direction factually ("prices fell"); you may NOT label the market or any asset "bullish", "bearish", "strong", "weak", "oversold", "overbought", "ready to bounce", "poised to rally", or any term implying a directional bet. Describe; never judge.
+
+Describe the weather — never tell the reader whether to carry an umbrella.
+
+## News timestamps are authoritative
+
+Each news item carries a published_utc timestamp. Only treat a headline as relevant to today's move if its timestamp falls within today's session. Never link today's move to a headline that predates it; older items are background context only. An empty news array is meaningful — it supports a "no clear catalyst" read.
 
 ## Tone
 
@@ -52,23 +60,74 @@ Field rules:
 - direction: net total-market-cap move only.
 - brief: lead with what moved (fact); then what it coincided with (coincidence only with associative language); then what is scheduled or noteworthy ahead.
 - drivers: every factor you leaned on, tagged with epistemic status. On an unexplained day this may be a single unknown entry.
-- explained: your honest read on how much of today's move the data accounts for.`;
+- explained: your honest read on how much of today's move the data accounts for.
+
+## Worked examples
+
+Example A — a day with a plausible macro coincidence.
+Input (abridged): market cap −2.4%, BTC −2.1%, SOL −3.1%; US CPI released 13:30 at 3.4% vs 3.1% forecast; 24h liquidations $90M, 82% longs; Fear & Greed 41 (Fear).
+
+{
+  "headline": "Market down 2.4% alongside a hotter-than-expected US inflation print.",
+  "direction": "down",
+  "brief": "Total crypto market cap fell 2.4% over the past 24 hours, with BTC down 2.1% and SOL down 3.1%. The decline coincided with a US CPI reading of 3.4% year-on-year, above the 3.1% consensus, released at 13:30 UTC. Alongside the move, $90M in positions were liquidated, roughly 82% of them longs, consistent with leveraged positioning being unwound as prices fell. Sentiment sits at 41 on the Fear & Greed index — Fear. No further high-importance macro events are scheduled today.",
+  "drivers": [
+    { "claim": "Market cap fell 2.4% over 24h", "type": "fact" },
+    { "claim": "US CPI printed 3.4% vs 3.1% expected, near in time to the decline", "type": "coincidence" },
+    { "claim": "$90M liquidated, ~82% longs", "type": "fact" }
+  ],
+  "explained": "partly-explained"
+}
+
+Note it says "coincided with" and "consistent with", never "because of", and grades itself partly-explained rather than claiming CPI caused the drop.
+
+Example B — a quiet day with no catalyst. This is the behaviour that matters most.
+Input (abridged): market cap −0.8%, BTC −0.6%, SOL −0.9%; Saturday; macro_today empty; no notable news; 24h liquidations $12M; Fear & Greed 52 (Neutral).
+
+{
+  "headline": "Market drifts 0.8% lower on a quiet weekend with no clear catalyst.",
+  "direction": "down",
+  "brief": "Total market cap slipped 0.8% over the past 24 hours, a modest move with no clear driver in the data. There were no scheduled macro releases, no major news, and liquidations were light at $12M — none of the usual triggers for a directional move are present. This has the shape of low-liquidity weekend drift rather than a response to any specific event. Sentiment is neutral at 52. The next notable macro data is not until the coming week; today offers little to read into.",
+  "drivers": [
+    { "claim": "Market cap down 0.8% with no corresponding macro, news, or liquidation event in the data", "type": "unknown" }
+  ],
+  "explained": "unexplained"
+}
+
+It refuses to invent a story, tags the move unknown, and grades itself unexplained. Restraint on a nothing day is the standard, not a failure.`;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function parseRssTitles(xml, limit = 4) {
+const decodeEntities = (s) => s
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&(?:apos|#0?39);/g, "'")
+  .replace(/&#8217;/g, '’').replace(/&#8216;/g, '‘')
+  .replace(/&#8220;/g, '“').replace(/&#8221;/g, '”')
+  .replace(/&#8211;/g, '–').replace(/&#8212;/g, '—')
+  .replace(/&nbsp;/g, ' ');
+
+/** RSS items with their publish time. The timestamp is the point: without it a
+ *  three-day-old headline can sit in today's market_state and be read as today's
+ *  cause. `<item>` may carry attributes, hence the loose opening tag. */
+function parseRssItems(xml, limit = 8) {
   if (!xml) return [];
-  const items = [];
-  for (const [block] of (xml.matchAll(/<item>[\s\S]*?<\/item>/g) || [])) {
-    if (items.length >= limit) break;
-    const m = block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-    if (m) {
-      const title = m[1].trim()
-        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#8217;/g, "'");
-      if (title) items.push(title);
+  const out = [];
+  for (const [block] of xml.matchAll(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/g)) {
+    if (out.length >= limit) break;
+    const t = block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    if (!t) continue;
+    const title = decodeEntities(t[1].trim());
+    if (!title) continue;
+
+    const p = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+    let published_utc = null;
+    if (p) {
+      const d = new Date(p[1].trim());
+      if (!Number.isNaN(d.getTime())) published_utc = d.toISOString();
     }
+    out.push({ title, published_utc });
   }
-  return items;
+  return out;
 }
 
 function filterFfEvents(events, dateUtc) {
@@ -158,14 +217,33 @@ export async function fetchSignals() {
       : null,
   };
 
+  // BTC dominance 24h change — no source provides it, so derive it from
+  // yesterday's stored snapshot. Missing row (first day, or a gap) stays null.
+  let btcDominanceChange = null;
+  const todayDom = g?.market_cap_percentage?.btc ?? null;
+  const prevRow  = getDailyBrief(yesterday);
+  if (prevRow && todayDom != null) {
+    try {
+      const prevDom = JSON.parse(prevRow.signals_json)?.market?.btc_dominance_pct;
+      if (prevDom != null) btcDominanceChange = +(todayDom - prevDom).toFixed(2);
+    } catch { /* unparseable older row — leave null */ }
+  }
+
   // ForexFactory
   const macroToday    = filterFfEvents(ffAll, today);
   const macroYesterday = filterFfEvents(ffAll, yesterday);
 
-  // News — merge CT + Decrypt, dedupe by title
-  const ctTitles      = parseRssTitles(ctXml, 4).map(t => ({ title: t, source: 'CoinTelegraph' }));
-  const decryptTitles = parseRssTitles(decryptXml, 4).map(t => ({ title: t, source: 'Decrypt' }));
-  const allNews       = [...ctTitles, ...decryptTitles].slice(0, 8);
+  // News — merge both feeds, drop anything stale, newest first, cap at 8.
+  // An empty array on a quiet day is correct: it reinforces "no clear catalyst".
+  const RSS_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+  const nowMs = Date.now();
+  const allNews = [
+    ...parseRssItems(ctXml, 8).map(x => ({ ...x, source: 'CoinTelegraph' })),
+    ...parseRssItems(decryptXml, 8).map(x => ({ ...x, source: 'Decrypt' })),
+  ]
+    .filter(x => x.published_utc && (nowMs - Date.parse(x.published_utc)) <= RSS_MAX_AGE_MS)
+    .sort((a, b) => Date.parse(b.published_utc) - Date.parse(a.published_utc))
+    .slice(0, 8);
 
   return {
     date:       today,
@@ -174,6 +252,7 @@ export async function fetchSignals() {
       total_market_cap_usd:          g?.total_market_cap?.usd          ?? null,
       total_market_cap_change_24h_pct: g?.market_cap_change_percentage_24h_usd ?? null,
       btc_dominance_pct:             g?.market_cap_percentage?.btc     ?? null,
+      btc_dominance_change_24h_pct:  btcDominanceChange,
       eth_dominance_pct:             g?.market_cap_percentage?.eth     ?? null,
     },
     assets: {
@@ -288,7 +367,7 @@ function briefSummary(row) {
 // ── renderBrief ──────────────────────────────────────────────────────────────
 
 export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
-  const { landing = false } = opts;
+  const { landing = false, honesty = null } = opts;
   const mc  = signals.market ?? {};
   const btc = signals.assets?.BTC ?? {};
   const eth = signals.assets?.ETH ?? {};
@@ -441,8 +520,10 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
                      margin-bottom:12px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
   .point-d { font-size:14px; color:var(--muted); margin:0; line-height:1.62; }
   /* Spans the full container so its rule lines up with the tile grid below. */
-  .sources { margin-top:38px; padding-top:18px; border-top:1px solid var(--line);
-             font-size:13px; color:var(--muted); line-height:1.6; }
+  .sources { margin-top:14px; font-size:13px; color:var(--muted); line-height:1.6; }
+  .track-record { margin-top:38px; padding-top:18px; border-top:1px solid var(--line);
+                  font-size:13.5px; color:var(--muted); line-height:1.6; }
+  .track-record strong { color:var(--fg); font-weight:700; }
   .hero-pill  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
                 padding:2px 7px; border-radius:4px; background:var(--card); border:1px solid var(--line); }
   .date  { color:var(--muted); font-size:13px; margin-top:24px; text-transform:uppercase; letter-spacing:.08em; }
@@ -550,10 +631,16 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
         </div>
         <div>
           <p class="point-t">One brief a day</p>
-          <p class="point-d">No alerts, no price targets, no urgency. Published each morning,
+          <p class="point-d">No alerts, no price targets, no urgency. Published each morning at 06:00 UTC,
             then it stops talking. Free to read, no account needed.</p>
         </div>
       </div>
+
+      ${honesty ? `
+      <p class="track-record">Over the last ${esc(honesty.days)} days,
+        <strong>${esc(honesty.explainedPct)}%</strong> of daily market moves had a clear,
+        data-linked driver. The remaining ${esc(100 - honesty.explainedPct)}% we flagged as
+        having no identifiable catalyst rather than inventing one.</p>` : ''}
 
       <p class="sources">Built on CoinGecko, FRED, Coinalyze, ForexFactory and public news
         feeds. Every figure on this page traces back to one of them — and nothing here is
@@ -562,7 +649,7 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
     ` : `
     <div class="hero">
       <p class="hero-title">The daily crypto market brief.</p>
-      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning, free to read, no account needed.</p>
+      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning at 06:00 UTC, free to read, no account needed.</p>
       <div class="hero-rule">
         Every claim is tagged
         <span class="hero-pill">Fact</span>
@@ -699,7 +786,7 @@ export function renderArchive(briefs) {
 
     <div class="hero">
       <p class="hero-title">The daily crypto market brief.</p>
-      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning, free to read, no account needed.</p>
+      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning at 06:00 UTC, free to read, no account needed.</p>
     </div>
 
     <h1>Every brief</h1>
@@ -781,18 +868,21 @@ export async function getHomepageHtml() {
     row = getDailyBrief(today);
   }
 
+  const honestyStats = getHonestyStats(30);
+  const honesty = honestyStats ? { ...honestyStats, days: 30 } : null;
+
   // Generation failed (model down) — render live so the page still serves.
   if (!row) {
     const signals   = await fetchSignals();
     const synthesis = await synthesize(signals);
-    return renderBrief(signals, synthesis, getRecentBriefs(today, 5), { landing: true });
+    return renderBrief(signals, synthesis, getRecentBriefs(today, 5), { landing: true, honesty });
   }
 
   const html = renderBrief(
     JSON.parse(row.signals_json),
     synthesisFromRow(row),
     getRecentBriefs(today, 5),
-    { landing: true },
+    { landing: true, honesty },
   );
   cache = { ...cache, date: today, home: html };
   return html;

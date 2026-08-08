@@ -1,0 +1,138 @@
+{
+  "date": "2026-07-28",
+  "as_of_utc": "2026-07-28T02:36:05.696Z",
+  "market": {
+    "total_market_cap_usd": 2250366975108.818,
+    "total_market_cap_change_24h_pct": -2.7306202541391,
+    "btc_dominance_pct": 56.30267837373424,
+    "eth_dominance_pct": 10.057537617714846
+  },
+  "assets": {
+    "BTC": {
+      "price_usd": 63163,
+      "change_24h_pct": -2.9578416931840947
+    },
+    "ETH": {
+      "price_usd": 1875.72,
+      "change_24h_pct": -3.457385024825136
+    },
+    "SOL": {
+      "price_usd": 73.3,
+      "change_24h_pct": -4.068778515040845
+    }
+  },
+  "sentiment": {
+    "fear_greed_value": 29,
+    "fear_greed_label": "Fear"
+  },
+  "liquidations_24h": null,
+  "macro_today": [
+    {
+      "time_utc": "03:05",
+      "event": "RBA Gov Bullock Speaks",
+      "currency": "AUD",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "14:00",
+      "event": "CB Consumer Confidence",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "92.4",
+      "previous": "91.2",
+      "status": "scheduled"
+    }
+  ],
+  "macro_recent_24h": [
+    {
+      "time_utc": "18:50",
+      "event": "President Trump Speaks",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    }
+  ],
+  "news": [
+    {
+      "title": "Hong Kong prepares banks for quantum threats amid tokenization push",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-28T01:06:05.696Z"
+    },
+    {
+      "title": "Binance phishs its own staff monthly, India censors BitChat code: Asia Express",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-27T23:36:05.696Z"
+    },
+    {
+      "title": "New York AG warns CLARITY Act could weaken state crypto enforcement",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-27T22:06:05.696Z"
+    },
+    {
+      "title": "Cross River to enable P2P payments, banking services for X Money",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-27T20:36:05.696Z"
+    },
+    {
+      "title": "Elon Musk: Humans Will Lose Control of AI Within a Decade",
+      "source": "Decrypt",
+      "published_utc": "2026-07-27T19:06:05.696Z"
+    },
+    {
+      "title": "OpenAI’s GPT-6 Will Arrive by September, Markets Predict",
+      "source": "Decrypt",
+      "published_utc": "2026-07-27T17:36:05.696Z"
+    },
+    {
+      "title": "Searchable NYC Property Database Puts Wealthy Residents at Risk, Critics Warn",
+      "source": "Decrypt",
+      "published_utc": "2026-07-27T16:06:05.696Z"
+    },
+    {
+      "title": "Prediction Market Traders Brace for Surprise Fed Rate Hike",
+      "source": "Decrypt",
+      "published_utc": "2026-07-27T14:36:05.696Z"
+    }
+  ],
+  "funding_rates": {
+    "BTC": {
+      "rate_8h": 0.004208,
+      "annualized_pct": 460.78
+    },
+    "ETH": {
+      "rate_8h": 0.001456,
+      "annualized_pct": 159.43
+    }
+  },
+  "open_interest": {
+    "BTC": {
+      "contracts": 105902.915
+    },
+    "ETH": {
+      "contracts": 2300586.696
+    }
+  },
+  "fred": {
+    "cpi": {
+      "date": "2026-06-01",
+      "value": 332.568,
+      "prev_value": 333.979
+    },
+    "fed_funds_rate": {
+      "date": "2026-06-01",
+      "value": 3.63
+    },
+    "yield_10y": {
+      "date": "2026-07-24",
+      "value": 4.69
+    }
+  }
+}

@@ -305,6 +305,27 @@ export function getAllBriefs() {
   return db.prepare(`SELECT date, brief_text, headline, explained FROM daily_briefs ORDER BY date DESC`).all();
 }
 
+/** 30-day honesty track record: how often the data actually accounted for the move.
+ *  Rows predating the `explained` column are excluded so the percentage isn't
+ *  diluted by days we never graded. */
+export function getHonestyStats(days = 30) {
+  const row = db.prepare(`
+    SELECT
+      COUNT(*)                                                        AS total,
+      SUM(CASE WHEN explained = 'well-explained'   THEN 1 ELSE 0 END) AS well,
+      SUM(CASE WHEN explained = 'partly-explained' THEN 1 ELSE 0 END) AS partly,
+      SUM(CASE WHEN explained = 'unexplained'      THEN 1 ELSE 0 END) AS unexplained
+    FROM daily_briefs
+    WHERE explained IS NOT NULL AND date >= date('now', ?)
+  `).get(`-${days} days`);
+
+  if (!row || !row.total) return null;
+  return {
+    ...row,
+    explainedPct: Math.round(((row.well + row.partly) / row.total) * 100),
+  };
+}
+
 /** Briefs published before `date` — powers the "recent briefs" rail.
  *  Older-only, so a stored page's rail can never go stale. */
 export function getRecentBriefs(beforeDate, limit = 5) {

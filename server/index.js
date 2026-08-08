@@ -9,6 +9,7 @@ import { bot } from './alerts.js';
 import { startMonitor } from './monitor.js';
 import rateLimit from 'express-rate-limit';
 import { getBriefHtml, getHomepageHtml, renderArchive } from './brief.js';
+import { startBriefCron } from './cron.js';
 import { getAllBriefs } from './db.js';
 
 const app = express();
@@ -92,6 +93,7 @@ app.get('/brief/:date', async (req, res) => {
 // ── Start ──────────────────────────────────────────────────────────────────
 app.listen(config.port, () => {
   console.log(`[api] listening on port ${config.port}`);
+  startBriefCron();
 });
 
 // Telegram bot and monitor are disabled — dashboard-only mode

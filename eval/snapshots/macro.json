@@ -1,0 +1,288 @@
+{
+  "date": "2026-07-30",
+  "as_of_utc": "2026-07-30T00:44:51.745Z",
+  "market": {
+    "total_market_cap_usd": 2264777494741.494,
+    "total_market_cap_change_24h_pct": -0.3629810786277496,
+    "btc_dominance_pct": 56.46512107177838,
+    "eth_dominance_pct": 10.118154264887771
+  },
+  "assets": {
+    "BTC": {
+      "price_usd": 63732,
+      "change_24h_pct": -0.3971427628925832
+    },
+    "ETH": {
+      "price_usd": 1897.56,
+      "change_24h_pct": -1.1330124244284667
+    },
+    "SOL": {
+      "price_usd": 73.3,
+      "change_24h_pct": -0.8300970174652018
+    }
+  },
+  "sentiment": {
+    "fear_greed_value": 28,
+    "fear_greed_label": "Fear"
+  },
+  "liquidations_24h": null,
+  "macro_today": [
+    {
+      "time_utc": "06:29",
+      "event": "German Prelim CPI m/m",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "0.7%",
+      "previous": "-0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "08:00",
+      "event": "German Prelim GDP q/q",
+      "currency": "EUR",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "0.1%",
+      "previous": "0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "BOE Monetary Policy Report",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "Monetary Policy Summary",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "MPC Official Bank Rate Votes",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": "2-0-7",
+      "previous": "2-0-7",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:00",
+      "event": "Official Bank Rate",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": "3.75%",
+      "previous": "3.75%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "11:30",
+      "event": "BOE Gov Bailey Speaks",
+      "currency": "GBP",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Advance GDP q/q",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "2.1%",
+      "previous": "2.0%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Core PCE Price Index m/m",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "0.2%",
+      "previous": "0.3%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Advance GDP Price Index q/q",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "4.1%",
+      "previous": "3.6%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "12:30",
+      "event": "Unemployment Claims",
+      "currency": "USD",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "201K",
+      "previous": "187K",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "23:30",
+      "event": "Tokyo Core CPI y/y",
+      "currency": "JPY",
+      "importance": "medium",
+      "actual": null,
+      "forecast": "1.8%",
+      "previous": "1.6%",
+      "status": "scheduled"
+    }
+  ],
+  "macro_recent_24h": [
+    {
+      "time_utc": "01:30",
+      "event": "CPI m/m",
+      "currency": "AUD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "0.2%",
+      "previous": "-0.7%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "01:30",
+      "event": "CPI y/y",
+      "currency": "AUD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "4.0%",
+      "previous": "4.0%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "01:30",
+      "event": "Trimmed Mean CPI m/m",
+      "currency": "AUD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "0.3%",
+      "previous": "0.4%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "18:00",
+      "event": "Federal Funds Rate",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": "3.75%",
+      "previous": "3.75%",
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "18:00",
+      "event": "FOMC Statement",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    },
+    {
+      "time_utc": "18:30",
+      "event": "FOMC Press Conference",
+      "currency": "USD",
+      "importance": "high",
+      "actual": null,
+      "forecast": null,
+      "previous": null,
+      "status": "scheduled"
+    }
+  ],
+  "news": [
+    {
+      "title": "US arbitration giant launches specialist panel for crypto disputes",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-29T23:14:51.745Z"
+    },
+    {
+      "title": "Robinhood posts record quarter, but crypto revenue slides 38%",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-29T21:44:51.745Z"
+    },
+    {
+      "title": "Binance.US to attempt prediction markets entry as CFTC-licensed entity, says CEO",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-29T20:14:51.745Z"
+    },
+    {
+      "title": "Crypto entering biggest consolidation phase in history, says ARK analyst",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-07-29T18:44:51.745Z"
+    },
+    {
+      "title": "Microsoft Quietly Adds New Windows App That Wants to Scan Your Face",
+      "source": "Decrypt",
+      "published_utc": "2026-07-29T17:14:51.745Z"
+    },
+    {
+      "title": "Robinhood Posts Best Quarter Ever as Prediction Market and Robinhood Chain Take Off",
+      "source": "Decrypt",
+      "published_utc": "2026-07-29T15:44:51.745Z"
+    },
+    {
+      "title": "Flock Cameras Face Growing Backlash as Privacy Concerns Reach Capitol Hill",
+      "source": "Decrypt",
+      "published_utc": "2026-07-29T14:14:51.745Z"
+    },
+    {
+      "title": "There&#39;s a New Way to Protect Bitcoin From Future Quantum Attacks, Researchers Say",
+      "source": "Decrypt",
+      "published_utc": "2026-07-29T12:44:51.745Z"
+    }
+  ],
+  "funding_rates": {
+    "BTC": {
+      "rate_8h": 0.008462,
+      "annualized_pct": 926.59
+    },
+    "ETH": {
+      "rate_8h": 0.003854,
+      "annualized_pct": 422.01
+    }
+  },
+  "open_interest": {
+    "BTC": {
+      "contracts": 104726.843
+    },
+    "ETH": {
+      "contracts": 2287572.403
+    }
+  },
+  "fred": {
+    "cpi": {
+      "date": "2026-06-01",
+      "value": 332.568,
+      "prev_value": 333.979
+    },
+    "fed_funds_rate": {
+      "date": "2026-06-01",
+      "value": 3.63
+    },
+    "yield_10y": {
+      "date": "2026-07-28",
+      "value": 4.61
+    }
+  }
+}

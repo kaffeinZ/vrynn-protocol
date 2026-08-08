@@ -1,0 +1,106 @@
+{
+  "date": "2026-08-02",
+  "as_of_utc": "2026-08-02T03:25:48.513Z",
+  "market": {
+    "total_market_cap_usd": 2255457490558.5596,
+    "total_market_cap_change_24h_pct": 0.3790815795242505,
+    "btc_dominance_pct": 56.34271321387432,
+    "eth_dominance_pct": 10.023679011039741
+  },
+  "assets": {
+    "BTC": {
+      "price_usd": 63462,
+      "change_24h_pct": 0.7561725372106546
+    },
+    "ETH": {
+      "price_usd": 1876.83,
+      "change_24h_pct": 0.5329029906973852
+    },
+    "SOL": {
+      "price_usd": 73.11,
+      "change_24h_pct": 0.2535513003535531
+    }
+  },
+  "sentiment": {
+    "fear_greed_value": 27,
+    "fear_greed_label": "Fear"
+  },
+  "liquidations_24h": null,
+  "macro_today": [],
+  "macro_recent_24h": [],
+  "news": [
+    {
+      "title": "Onchain, in court: What happened in crypto legal news this week",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-08-02T01:55:48.513Z"
+    },
+    {
+      "title": "Minnesota crypto ATM ban goes into effect after reported $1M losses",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-08-02T00:25:48.513Z"
+    },
+    {
+      "title": "Crypto PAC pours another $1M into Michigan House race",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-08-01T22:55:48.513Z"
+    },
+    {
+      "title": "Russia expands crypto mining ban to Moscow through 2032",
+      "source": "CoinTelegraph",
+      "published_utc": "2026-08-01T21:25:48.513Z"
+    },
+    {
+      "title": "CZ Warns Bitcoin Holders After $70 Million Wallet Exploit: &#39;Nothing Is 100%&#39;",
+      "source": "Decrypt",
+      "published_utc": "2026-08-01T19:55:48.513Z"
+    },
+    {
+      "title": "The More Americans Know About AI, the Less They Like It: Gallup",
+      "source": "Decrypt",
+      "published_utc": "2026-08-01T18:25:48.513Z"
+    },
+    {
+      "title": "Google Yanks Google Earth AI Image Tool a Day After Launch Over Deepfake Fears",
+      "source": "Decrypt",
+      "published_utc": "2026-08-01T16:55:48.513Z"
+    },
+    {
+      "title": "AI Music Company Suno Loses Copyright Case in Germany",
+      "source": "Decrypt",
+      "published_utc": "2026-08-01T15:25:48.513Z"
+    }
+  ],
+  "funding_rates": {
+    "BTC": {
+      "rate_8h": 0.00453,
+      "annualized_pct": 496.04
+    },
+    "ETH": {
+      "rate_8h": 0.002775,
+      "annualized_pct": 303.86
+    }
+  },
+  "open_interest": {
+    "BTC": {
+      "contracts": 108970.056
+    },
+    "ETH": {
+      "contracts": 2285966.677
+    }
+  },
+  "fred": {
+    "cpi": {
+      "date": "2026-06-01",
+      "value": 332.568,
+      "prev_value": 333.979
+    },
+    "fed_funds_rate": {
+      "date": "2026-06-01",
+      "value": 3.63
+    },
+    "yield_10y": {
+      "date": "2026-07-30",
+      "value": 4.68
+    }
+  }
+}
