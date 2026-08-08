@@ -33,7 +33,10 @@ const FABRICATED_CONSENSUS = [
   'beat expectations', 'missed expectations', 'above expectations', 'below expectations',
 ];
 
-const CASES = ['quiet', 'macro', 'crash', 'rally', 'release'];
+const CASES = ['quiet', 'macro', 'crash', 'rally', 'release', 'sector-inline', 'sector-diverged'];
+
+// Sector fixtures go through the sector-mode prompt, not the market one.
+const isSector = (name) => name.startsWith('sector-');
 
 let failures = 0;
 const fail = (msg) => { console.error(`  ✗ ${msg}`); failures++; };
@@ -44,7 +47,7 @@ for (const name of CASES) {
 
   let brief;
   try {
-    brief = await synthesize(marketState);
+    brief = await synthesize(marketState, isSector(name) ? { mode: 'sector' } : {});
   } catch (err) {
     fail(`${name}: synthesis threw — ${err.message}`);
     continue;
@@ -71,10 +74,17 @@ for (const name of CASES) {
     if (brief.explained !== 'unexplained') {
       fail(`quiet: expected explained="unexplained", got "${brief.explained}"`);
     }
-    const allUnknown = Array.isArray(brief.drivers) && brief.drivers.length > 0 &&
-      brief.drivers.every(d => d.type === 'unknown');
-    if (!allUnknown) {
-      fail(`quiet: every driver should be type="unknown", got [${(brief.drivers ?? []).map(d => d.type).join(', ')}]`);
+    // Deliberately not "every driver must be unknown". A `fact` driver on a quiet
+    // day ("market cap rose 0.38%") is honest — the spec says the array *may* be a
+    // single unknown, not must. What the anchor actually guards against is a
+    // manufactured catalyst, and that shows up as a `coincidence`: the model
+    // pairing the move with something it has no business linking it to.
+    const types = (brief.drivers ?? []).map(d => d.type);
+    if (!types.includes('unknown')) {
+      fail(`quiet: no driver tagged "unknown" on a no-catalyst day, got [${types.join(', ')}]`);
+    }
+    if (types.includes('coincidence')) {
+      fail(`quiet: a "coincidence" driver on a day with no catalyst — manufactured link, got [${types.join(', ')}]`);
     }
   }
 
@@ -101,6 +111,23 @@ for (const name of CASES) {
     }
     const fab = hits(prose, FABRICATED_CONSENSUS);
     if (fab.length) fail(`release: fabricated consensus framing: ${fab.join(', ')}`);
+  }
+
+  // Sector reads must state the sector-vs-market relationship as a fact, and must
+  // not manufacture a sector narrative when the sector merely tracked the market.
+  if (isSector(name)) {
+    const sc = marketState.sector?.market_cap_change_24h;
+    const mc = marketState.market?.total_market_cap_change_24h_pct;
+    const diff = sc - mc;
+    const rel = /outperform|underperform|in line|track|lag|ahead of|behind/i.test(prose);
+    if (!rel) fail(`${name}: never states the sector-vs-market relationship`);
+
+    if (Math.abs(diff) < 0.25 && brief.explained !== 'unexplained') {
+      fail(`${name}: sector tracked the market (${diff.toFixed(2)}pp) but graded "${brief.explained}" — likely an invented narrative`);
+    }
+    if (!prose.includes(String(Math.abs(sc).toFixed(1))) && !prose.includes(String(sc))) {
+      console.log(`  note: sector move ${sc}% not quoted verbatim (not a failure)`);
+    }
   }
 
   console.log(`  headline : ${brief.headline}`);

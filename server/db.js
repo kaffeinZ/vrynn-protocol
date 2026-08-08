@@ -81,6 +81,18 @@ db.exec(`
     reset_date     TEXT    NOT NULL DEFAULT (date('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS sector_briefs (
+    date           TEXT NOT NULL,
+    sector_slug    TEXT NOT NULL,
+    aggregate_json TEXT NOT NULL,
+    synthesis_json TEXT,
+    html           TEXT,
+    created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (date, sector_slug)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sector_slug ON sector_briefs(sector_slug, date DESC);
+
   CREATE TABLE IF NOT EXISTS macro_state (
     series_id   TEXT PRIMARY KEY,
     last_period TEXT,
@@ -292,6 +304,49 @@ export function claimLinkCode(rawCode) {
 
   db.prepare(`DELETE FROM telegram_link_codes WHERE code = ?`).run(code);
   return row.wallet_address;
+}
+
+// ── sector_briefs ──────────────────────────────────────────────────────────
+export function saveSectorBrief({ date, slug, aggregate, synthesis, html }) {
+  db.prepare(`
+    INSERT OR REPLACE INTO sector_briefs(date, sector_slug, aggregate_json, synthesis_json, html)
+    VALUES(?, ?, ?, ?, ?)
+  `).run(date, slug, JSON.stringify(aggregate), synthesis ? JSON.stringify(synthesis) : null, html ?? null);
+}
+
+export function getSectorBrief(slug, date) {
+  return db.prepare(`SELECT * FROM sector_briefs WHERE sector_slug = ? AND date = ?`).get(slug, date) ?? null;
+}
+
+/** Most recent published read for a sector — powers /sector/:slug. */
+export function getLatestSectorBrief(slug) {
+  return db.prepare(`
+    SELECT * FROM sector_briefs WHERE sector_slug = ? ORDER BY date DESC LIMIT 1
+  `).get(slug) ?? null;
+}
+
+export function getSectorDates(slug, limit = 30) {
+  return db.prepare(`
+    SELECT date, created_at FROM sector_briefs WHERE sector_slug = ? ORDER BY date DESC LIMIT ?
+  `).all(slug, limit);
+}
+
+/** Latest row per sector — for the homepage sector grid. */
+export function getLatestSectorAll() {
+  return db.prepare(`
+    SELECT s.* FROM sector_briefs s
+    INNER JOIN (SELECT sector_slug, MAX(date) AS d FROM sector_briefs GROUP BY sector_slug) g
+      ON s.sector_slug = g.sector_slug AND s.date = g.d
+  `).all();
+}
+
+/** Every rendered sector page, for the sitemap. */
+export function getSectorSitemapEntries() {
+  return db.prepare(`
+    SELECT sector_slug, date, created_at FROM sector_briefs
+    WHERE html IS NOT NULL AND length(html) > 0
+    ORDER BY date DESC
+  `).all();
 }
 
 // ── macro_state ────────────────────────────────────────────────────────────

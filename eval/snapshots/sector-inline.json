@@ -1,0 +1,29 @@
+{
+  "date": "2026-08-08",
+  "as_of_utc": "2026-08-08T01:34:23.126Z",
+  "sector": {
+    "slug": "defi",
+    "label": "DeFi",
+    "market_cap_usd": 56969795080.037254,
+    "market_cap_change_24h": 0.44,
+    "volume_24h_usd": 2539029333.6607456,
+    "top_coins": [
+      "staked-ether",
+      "hyperliquid",
+      "rain"
+    ],
+    "read_as_flows": false
+  },
+  "market": {
+    "total_market_cap_usd": 2293305414665.9805,
+    "total_market_cap_change_24h_pct": 0.5371630706403251
+  },
+  "macro": {
+    "scheduled": [],
+    "completed": []
+  },
+  "sentiment": {
+    "fear_greed_value": 30,
+    "fear_greed_label": "Fear"
+  }
+}

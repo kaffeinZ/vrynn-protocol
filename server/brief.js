@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats } from './db.js';
 import { fetchMacroCompleted } from './macro.js';
+import { SECTORS } from './sectors.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CG           = 'https://api.coingecko.com/api/v3';
@@ -299,7 +300,24 @@ export async function fetchSignals() {
 
 // ── synthesize ───────────────────────────────────────────────────────────────
 
-async function callModel(userPrompt, maxTokens) {
+/** Kept in sync with eval/run.js — these are the phrases the product exists to avoid. */
+const BANNED_CAUSAL = [
+  'because of', 'due to', 'caused by', 'driven by', 'in response to', 'on the back of',
+  'triggered by', 'sparked by', 'fuelled by', 'fueled by', 'weighed down by',
+  'boosted by', 'thanks to',
+];
+const BANNED_VERDICT = [
+  'bullish', 'bearish', 'oversold', 'overbought', 'load up', 'price target',
+  'will reach', 'could reach', 'poised to', 'ready to bounce', 'should buy', 'should sell',
+];
+// We are never given consensus figures, so any of these means the model invented one.
+const BANNED_CONSENSUS = [
+  'vs expected', 'versus expected', 'vs forecast', 'versus forecast', 'consensus',
+  'expectations of', 'analysts expected', 'economists expected',
+  'beat expectations', 'missed expectations', 'above expectations', 'below expectations',
+];
+
+async function callModel(userPrompt, maxTokens, system = SYSTEM_PROMPT, model = config.aiModel) {
   const res = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
@@ -309,9 +327,9 @@ async function callModel(userPrompt, maxTokens) {
       'X-Title':       'Vrynn',
     },
     body: JSON.stringify({
-      model:      config.aiModel,
+      model,
       messages:   [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: system },
         { role: 'user',   content: userPrompt },
       ],
       max_tokens:  maxTokens,
@@ -328,27 +346,80 @@ async function callModel(userPrompt, maxTokens) {
   // Strip markdown fences if the model wraps the output anyway.
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   const parsed  = JSON.parse(cleaned);   // throws on a truncated body
+
+  // A syntactically valid body can still be missing required fields — observed
+  // in practice, not theoretical. Treat that as a failed attempt so the retry
+  // fires, rather than shipping a page with a hole in it.
+  const REQUIRED = ['headline', 'direction', 'brief', 'drivers', 'explained'];
+  const missing  = REQUIRED.filter(f => parsed[f] == null);
+  if (missing.length) throw new Error(`response missing required field(s): ${missing.join(', ')}`);
+
+  // The honesty bar is enforced here, not merely requested in the prompt. The
+  // eval catches leaks in testing; the cron publishes unattended every day, so
+  // the same check has to run in production. A violation fails the attempt and
+  // retries — and if every attempt leaks, synthesize returns null and the page
+  // renders data without prose. Publishing no read is strictly better than
+  // publishing a causal claim the data does not support.
+  const prose = `${parsed.headline} ${parsed.brief}`.toLowerCase();
+  const causal = BANNED_CAUSAL.filter(p => prose.includes(p));
+  if (causal.length) throw new Error(`banned causal phrase(s): ${causal.join(', ')}`);
+  const verdict = BANNED_VERDICT.filter(p => prose.includes(p));
+  if (verdict.length) throw new Error(`verdict/advice term(s): ${verdict.join(', ')}`);
+  const invented = BANNED_CONSENSUS.filter(p => prose.includes(p));
+  if (invented.length) throw new Error(`fabricated consensus: ${invented.join(', ')}`);
+
   return { parsed, reason };
 }
 
 /** One model call per day, but retry once on a malformed body. The usual cause
  *  is the completion hitting the token ceiling mid-JSON, which throws in
  *  JSON.parse and would otherwise publish a brief with tiles and no prose. */
-export async function synthesize(marketState) {
+/** Extra guidance for sector reads. Appended to the shared system prompt so the
+ *  honesty rules (fact/coincidence/unknown, no causation, no advice) still apply
+ *  unchanged — this only adds what a sector read must additionally do. */
+const SECTOR_PROMPT = `
+
+## This is a SECTOR read
+
+Compare the sector's move to the overall market move and state the relationship as a FACT: outperforming, underperforming, or in line. Then, only if the data supports it, note a sector-specific coincidence (a completed macro print, a constituent-level event).
+
+Most days a sector simply tracks the broad market with no sector-specific catalyst. When that is the case, say so plainly — "in line with the broad market; no sector-specific driver" — and grade it unexplained. Do not invent a sector narrative. A sector that merely moved with the market is the normal case, not a failure to explain.
+
+A LARGE DIVERGENCE IS NOT AN EXPLANATION. When a sector moves far more than the market — 5%, 10%, more — the pull to explain it is strongest and the data supporting an explanation is usually no better than on a quiet day. Size of move never licenses causal language. State the divergence as a fact, then say plainly that the data contains no sector-specific driver if it does not. "Gaming rose 8% while the broad market rose 0.5%; no sector-specific catalyst appears in the data" is a complete and correct read. Never write that a sector move was driven by, fuelled by, or a response to anything.
+
+If sector.read_as_flows is true (stablecoins), do NOT lead on the price move — these are pegged, so a ~0% change is meaningless and reporting it as "little movement" wastes the read. Lead instead on the direction and size of the market-cap change, which represents supply expanding or contracting. Expanding stablecoin supply is capital entering; contracting is capital leaving. State that as a fact about supply, never as a signal to act on.`;
+
+export async function synthesize(marketState, opts = {}) {
+  const system = opts.mode === 'sector' ? SYSTEM_PROMPT + SECTOR_PROMPT : SYSTEM_PROMPT;
+  const label  = opts.mode === 'sector' ? 'sector read' : 'brief';
+
   const userPrompt =
     `Today's market data (this is the complete set of inputs — reason only from what is listed):\n\n` +
-    `${JSON.stringify(marketState, null, 2)}\n\nGenerate the brief.`;
+    `${JSON.stringify(marketState, null, 2)}\n\nGenerate the ${label}.`;
 
-  const attempts = [1400, 2000];
+  // The brief is ~500 tokens of output; these caps exist only to absorb variance,
+  // not because long output is wanted. Kept modest deliberately — the previous
+  // model was a reasoning model that consumed the whole budget invisibly before
+  // emitting, which is why it was replaced rather than given a bigger budget.
+  const attempts = [1600, 2400, 2400];
   for (let i = 0; i < attempts.length; i++) {
     try {
-      const { parsed, reason } = await callModel(userPrompt, attempts[i]);
+      const { parsed, reason } = await callModel(userPrompt, attempts[i], system, config.aiModel);
       if (reason === 'length') throw new Error('completion truncated (finish_reason=length)');
       return parsed;
     } catch (err) {
       const last = i === attempts.length - 1;
-      console.error(`[brief] synthesis attempt ${i + 1}/${attempts.length} failed:`, err.message);
+      console.error(`[brief] ${label} synthesis attempt ${i + 1}/${attempts.length} failed:`, err.message);
       if (last) {
+        // Last resort: a different provider. The primary's failure mode is an
+        // empty completion, which no amount of retrying the same model fixes.
+        try {
+          const { parsed } = await callModel(userPrompt, 2000, system, config.aiModelFallback);
+          console.error(`[brief] recovered via fallback model ${config.aiModelFallback}`);
+          return parsed;
+        } catch (fbErr) {
+          console.error('[brief] fallback model also failed:', fbErr.message);
+        }
         // Caller renders a data-only brief rather than publishing nothing.
         console.error('[brief] giving up — page will render tiles without prose');
         return null;
@@ -473,6 +544,32 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="https://vrynn.xyz/brief/${esc(signals.date)}">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Vrynn">
+<meta property="og:title" content="${esc(synthesis?.headline || title)}">
+<meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="https://vrynn.xyz/brief/${esc(signals.date)}">
+<meta property="og:image" content="https://vrynn.xyz/og/${esc(signals.date)}.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="article:published_time" content="${esc(signals.date)}T06:00:00Z">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(synthesis?.headline || title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="twitter:image" content="https://vrynn.xyz/og/${esc(signals.date)}.png">
+<script type="application/ld+json">${JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: (synthesis?.headline || title).slice(0, 110),
+  description: desc,
+  datePublished: `${signals.date}T06:00:00Z`,
+  dateModified: `${signals.date}T06:00:00Z`,
+  mainEntityOfPage: { '@type': 'WebPage', '@id': `https://vrynn.xyz/brief/${signals.date}` },
+  image: [`https://vrynn.xyz/og/${signals.date}.png`],
+  author:    { '@type': 'Organization', name: 'Vrynn', url: 'https://vrynn.xyz' },
+  publisher: { '@type': 'Organization', name: 'Vrynn', url: 'https://vrynn.xyz' },
+  isAccessibleForFree: true,
+}).replace(/</g, '\\u003c')}</script>
 <style>
   /* Neutrals carry a slight blue cast — pure #fff/#111 reads flat and unfinished. */
   :root { --bg:#fcfcfd; --fg:#0f1115; --muted:#5b6070; --line:#e6e7ec; --card:#f7f8fa;
@@ -545,6 +642,16 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
   .point-d { font-size:14px; color:var(--muted); margin:0; line-height:1.62; }
   /* Spans the full container so its rule lines up with the tile grid below. */
   .sources { margin-top:14px; font-size:13px; color:var(--muted); line-height:1.6; }
+  /* Crawlable path from the homepage to every sector page — internal links pass
+     the little authority the homepage has, which the sitemap alone cannot do. */
+  .sector-nav { margin-top:40px; padding-top:20px; border-top:1px solid var(--line); }
+  .sector-nav-label { font-size:11px; color:var(--muted); text-transform:uppercase;
+                      letter-spacing:.07em; margin-bottom:13px; }
+  .sector-links { display:flex; flex-wrap:wrap; gap:8px; }
+  .sector-links a { font-size:13px; text-decoration:none; color:var(--fg); background:var(--card);
+                    border:1px solid var(--line); border-radius:8px; padding:6px 12px;
+                    transition:border-color .15s ease, transform .15s ease; }
+  .sector-links a:hover { border-color:var(--muted); transform:translateY(-1px); }
   .track-record { margin-top:38px; padding-top:18px; border-top:1px solid var(--line);
                   font-size:13.5px; color:var(--muted); line-height:1.6; }
   .track-record strong { color:var(--fg); font-weight:700; }
@@ -660,6 +767,13 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
         </div>
       </div>
 
+      <div class="sector-nav">
+        <div class="sector-nav-label">By sector</div>
+        <div class="sector-links">
+          ${SECTORS.map(s => `<a href="/sector/${esc(s.slug)}">${esc(s.label)}</a>`).join('')}
+        </div>
+      </div>
+
       ${honesty ? `
       <p class="track-record">Over the last ${esc(honesty.days)} days,
         <strong>${esc(honesty.explainedPct)}%</strong> of daily market moves had a clear,
@@ -768,6 +882,18 @@ export function renderArchive(briefs) {
 <meta name="description" content="Every daily crypto market brief — what moved and what coincided with it.">
 <link rel="canonical" href="https://vrynn.xyz/brief">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Vrynn">
+<meta property="og:title" content="Daily crypto market brief archive | Vrynn">
+<meta property="og:description" content="Every daily crypto market brief — what moved and what coincided with it.">
+<meta property="og:url" content="https://vrynn.xyz/brief">
+<meta property="og:image" content="https://vrynn.xyz/og/${esc(briefs[0]?.date ?? 'latest')}.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Daily crypto market brief archive | Vrynn">
+<meta name="twitter:description" content="Every daily crypto market brief — what moved and what coincided with it.">
+<meta name="twitter:image" content="https://vrynn.xyz/og/${esc(briefs[0]?.date ?? 'latest')}.png">
 <style>
   /* Same token set as the brief page — the two must not look like different products. */
   :root { --bg:#fcfcfd; --fg:#0f1115; --muted:#5b6070; --line:#e6e7ec; --card:#f7f8fa;

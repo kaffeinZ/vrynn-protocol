@@ -61,6 +61,52 @@ _Record every removal here so nothing is silently orphaned._
 - **2026-07-26** — Deleted `dashboard/public/favicon-v2.svg`. Two favicons existed; `index.html` referenced v2 and `favicon.svg` was orphaned. New mark written to the canonical `favicon.svg`, all references repointed, v2 removed. Dashboard rebuilt (`dist/` no longer carries it) and `/favicon-v2.svg` confirmed 404.
 - _Known follow-ups (not yet removed, still wired):_ the Telegram flow is disabled at `server/index.js` (`startBot()`/`startMonitor()` not called) but `telegram_link_codes` table + `createLinkCode`/`claimLinkCode` in `db.js` remain. Old protocol dashboard (`server/protocols/*`, `PositionCard`, `useVrynn`, etc.) is **live**, not dead — it is removed in P5 when the new portfolio view replaces it.
 
+### Build 1 — Sector pages (2026-08-08)
+Twelve curated sectors at `/sector/:slug` (+ dated archive at `/sector/:slug/:date`), generated
+after the daily brief so they reuse the same `market_state` — one macro block, one source of truth.
+Homepage links all twelve (the crawl path; the sitemap alone does not pass authority), and all
+24 sector URLs are in the sitemap. Sitemap is now 42 URLs.
+
+**Two categories were rejected before shipping, one of which would have published a false number:**
+`solana-ecosystem` returns null for cap/change/volume; `liquid-staking-tokens` reports a $26.9M
+aggregate while its own top-3 constituents sum to $34.1B — wrong by 1268×, and plausible-looking
+enough that no reader would catch it. Only 359 of 749 CoinGecko categories carry both a cap and a
+24h change, so curation is a data-quality necessity, not just an SEO guard.
+_Solana is on the revisit list: it is the home audience, and the aggregate can be computed from
+constituents if CoinGecko keeps returning null._
+
+**Runtime guard** (`validateCategory`) re-checks every sector each run: null cap, null 24h change,
+or an aggregate below its own top-3 all cause a skip plus a `notifyAdmin` alert. This is the main
+protection, not the backstop — curation fixes what is known broken today, the guard catches what
+breaks next month. Set `TELEGRAM_ADMIN_CHAT_ID` to route those alerts to Telegram (they go to the
+error log until then; the previously-assumed Telegram wiring in the cron never existed).
+
+### Honesty enforced in code, not just prompted (2026-08-08)
+The banned-phrase rules now run inside `synthesize`, not only in the eval: a response containing a
+causal phrase, a verdict term, or a fabricated consensus fails the attempt and retries. If every
+attempt leaks, `synthesize` returns null and the page renders data without prose — publishing no
+read beats publishing a causal claim the data does not support. The cron publishes unattended
+daily, so the check has to run in production, not just in tests.
+
+**Model choice is load-bearing.** `deepseek-v4-flash` is a *reasoning* model: on some inputs it
+consumes the entire token budget thinking and emits nothing (verified at 8000 tokens, 0 emitted;
+`reasoning:{exclude:true}` and `effort:'low'` are both ignored by the provider, so more budget
+cannot fix it). Every "empty completion" and mid-JSON truncation seen during development traces to
+this. It stays primary because it follows the honesty rules markedly better than the alternatives;
+the fallback is `mistral-small-24b`, verified non-reasoning against the exact input that starves the
+primary. **Do not set either model to a reasoning model** — `qwen3.7-flash` fails identically.
+
+### Share metadata (2026-08-08)
+Pages carried title/description/canonical but **no** Open Graph, Twitter Card or structured
+data — so a link shared on X, Telegram, Discord or Slack rendered as a bare URL with no
+preview, on the exact channel that would produce the first traffic. Added per-page OG +
+Twitter tags and `NewsArticle` JSON-LD (`datePublished`, publisher, `isAccessibleForFree`).
+Share cards are generated per brief at `/og/:date.png` — 1200×630, rendered from the stored
+row so each card carries that day's real headline, market-cap move, BTC/ETH/SOL and the
+`explained` badge. Cards are rasterised with `rsvg-convert` and cached to `og-cache/`;
+immutable once published, so served `max-age=31536000`. **Runtime dependency:** `rsvg-convert`
+(`librsvg2-bin`) must be installed, or the route returns 503 and previews fall back to no image.
+
 ### Host canonicalisation (2026-08-08)
 `www.vrynn.xyz` and `vrynn.xyz` were both serving 200 with identical content while every
 `<link rel="canonical">` declared apex — duplicate content splitting an already-tiny

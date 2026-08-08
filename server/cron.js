@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getBriefHtml, getHomepageHtml } from './brief.js';
 import { getDailyBrief } from './db.js';
+import { runSectorBriefs } from './sectorRun.js';
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
@@ -10,6 +11,11 @@ async function generateFor(label) {
     await getBriefHtml();      // creates and persists today's row via the existing path
     await getHomepageHtml();   // warm the homepage variant so no visitor pays for it
     console.log(`[cron] ${label}: brief + homepage ready for ${date}`);
+
+    // Sectors run after the brief so they reuse the same day's market_state.
+    // A sector failure must not invalidate an already-published brief.
+    try { await runSectorBriefs(date); }
+    catch (err) { console.error(`[cron] ${label}: sector run failed:`, err.message); }
   } catch (err) {
     console.error(`[cron] ${label}: generation failed for ${date}:`, err.message);
   }

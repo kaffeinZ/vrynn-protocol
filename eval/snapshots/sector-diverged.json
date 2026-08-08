@@ -1,0 +1,29 @@
+{
+  "date": "2026-08-08",
+  "as_of_utc": "2026-08-08T01:34:23.126Z",
+  "sector": {
+    "slug": "gaming",
+    "label": "Gaming",
+    "market_cap_usd": 4460658816.051031,
+    "market_cap_change_24h": 8.03,
+    "volume_24h_usd": 428893073.4887126,
+    "top_coins": [
+      "audiera",
+      "immutable-x",
+      "floki"
+    ],
+    "read_as_flows": false
+  },
+  "market": {
+    "total_market_cap_usd": 2293305414665.9805,
+    "total_market_cap_change_24h_pct": 0.5371630706403251
+  },
+  "macro": {
+    "scheduled": [],
+    "completed": []
+  },
+  "sentiment": {
+    "fear_greed_value": 30,
+    "fear_greed_label": "Fear"
+  }
+}
