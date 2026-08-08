@@ -21,6 +21,17 @@ export const BLS_SERIES = {
   'Avg hourly earnings': { id: 'CES0500000003',  unit: '$', mode: 'level' }, // 37.62
 };
 
+/**
+ * DETECTION MODE — set this deliberately for every series you add.
+ *
+ *   periodic (default)  — monthly/quarterly. A new period IS a new release.
+ *   onChangeOnly: true  — continuous/daily series. The period advances every day,
+ *                         so period-advance alone fires constantly. Only a change
+ *                         in the value counts as an event.
+ *
+ * Anything continuous you add later — yields, DXY, spreads, any daily rate —
+ * needs onChangeOnly. Monthly and quarterly prints stay on period-advance.
+ */
 export const FRED_SERIES = {
   'PCE YoY':        { id: 'PCEPI',           unit: '%', units: 'pc1' }, // 3.67
   'Core PCE YoY':   { id: 'PCEPILFE',        unit: '%', units: 'pc1' }, // 3.29

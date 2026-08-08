@@ -325,6 +325,20 @@ export function getAllBriefs() {
   return db.prepare(`SELECT date, brief_text, headline, explained FROM daily_briefs ORDER BY date DESC`).all();
 }
 
+/** Rows that actually produced a page, for the sitemap.
+ *  A sitemap listing URLs that 404 is read as a site-wide quality signal, so the
+ *  html guard is the filter — not merely "a row exists".
+ *  `created_at` is the real generation time and becomes an honest `lastmod`:
+ *  a published brief never changes, so its lastmod must never move. */
+export function getSitemapEntries() {
+  return db.prepare(`
+    SELECT date, created_at
+    FROM daily_briefs
+    WHERE html IS NOT NULL AND length(html) > 0
+    ORDER BY date DESC
+  `).all();
+}
+
 /** 30-day honesty track record: how often the data actually accounted for the move.
  *  Rows predating the `explained` column are excluded so the percentage isn't
  *  diluted by days we never graded. */
