@@ -61,6 +61,18 @@ _Record every removal here so nothing is silently orphaned._
 - **2026-07-26** — Deleted `dashboard/public/favicon-v2.svg`. Two favicons existed; `index.html` referenced v2 and `favicon.svg` was orphaned. New mark written to the canonical `favicon.svg`, all references repointed, v2 removed. Dashboard rebuilt (`dist/` no longer carries it) and `/favicon-v2.svg` confirmed 404.
 - _Known follow-ups (not yet removed, still wired):_ the Telegram flow is disabled at `server/index.js` (`startBot()`/`startMonitor()` not called) but `telegram_link_codes` table + `createLinkCode`/`claimLinkCode` in `db.js` remain. Old protocol dashboard (`server/protocols/*`, `PositionCard`, `useVrynn`, etc.) is **live**, not dead — it is removed in P5 when the new portfolio view replaces it.
 
+### Host canonicalisation (2026-08-08)
+`www.vrynn.xyz` and `vrynn.xyz` were both serving 200 with identical content while every
+`<link rel="canonical">` declared apex — duplicate content splitting an already-tiny
+authority signal across two hosts. Nginx now 301s www → apex with path and query preserved
+(`return 301 https://vrynn.xyz$request_uri;`), and the apex block's `server_name` was
+narrowed to `vrynn.xyz` alone. The redirect block matches `www.vrynn.xyz` **exactly** — a
+broader `server_name` there would make apex 301 to itself and loop, so "apex still returns
+200, not 301" is the pass/fail gate on any future change to this file.
+Config backup: `/root/vrynn-nginx.bak.*`. **Search Console: submit the sitemap under the
+apex property (`https://vrynn.xyz/`) — GSC treats www and apex as separate properties, and
+the earlier www submission was doomed regardless because every URL in the sitemap is apex.**
+
 ### Known gaps
 - **Macro actuals — RESOLVED 2026-08-08.** ForexFactory never populates `actual` (verified: 0 of 99 events), so it is now used for the forward schedule only. Completed releases come from **BLS v1** (keyless, 25 queries/day — CPI, core CPI, PPI, unemployment, payrolls, avg earnings) and **FRED** (PCE, core PCE, real GDP, Fed funds). `market_state.macro` is split into `scheduled` and `completed`; only `completed` carries numbers the model may cite. Release detection is period-advance against the `macro_state` table, not a guessed calendar. **Timing note:** the 06:00 UTC cron predates 13:30 UTC US releases, so today's print appears in tomorrow's brief by design — the brief reports completed releases plus today's schedule, which is how a morning note actually reads.
 - **Consensus / forecast — DEFERRED.** Official sources publish what happened, not what was expected, so there is no "vs 3.1% expected" figure. Surprises are framed against the *previous* reading instead ("3.53%, down from 4.25% prior"), which stays on primary-source footing. The prompt explicitly forbids inventing a consensus, and `eval/snapshots/release.json` asserts against fabricated "vs expected" framing. Revisit via a ForexFactory scraper (fragile + ToS grey) or Trading Economics (verify US is on the free tier) only if it proves worth a paid tier.
