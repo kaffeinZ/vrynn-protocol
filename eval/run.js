@@ -26,7 +26,14 @@ const VERDICT = [
 
 const hits = (text, list) => list.filter(p => text.toLowerCase().includes(p));
 
-const CASES = ['quiet', 'macro', 'crash', 'rally'];
+// Terms that would mean the model invented a consensus it was never given.
+const FABRICATED_CONSENSUS = [
+  'vs expected', 'versus expected', 'vs forecast', 'versus forecast',
+  'consensus', 'expectations of', 'analysts expected', 'economists expected',
+  'beat expectations', 'missed expectations', 'above expectations', 'below expectations',
+];
+
+const CASES = ['quiet', 'macro', 'crash', 'rally', 'release'];
 
 let failures = 0;
 const fail = (msg) => { console.error(`  ✗ ${msg}`); failures++; };
@@ -82,6 +89,18 @@ for (const name of CASES) {
     } else if (!released.length) {
       console.log('  note: fixture has no released prints — explained-grade assertion skipped');
     }
+  }
+
+  // A completed print must be cited with its real number and framed against
+  // `previous` — never against a consensus figure the model was never given.
+  if (name === 'release') {
+    const done = marketState.macro?.completed ?? [];
+    const cited = done.some(c => prose.includes(String(c.actual)));
+    if (!cited) {
+      fail(`release: brief never cites the released actual (${done.map(c => c.actual).join(', ')})`);
+    }
+    const fab = hits(prose, FABRICATED_CONSENSUS);
+    if (fab.length) fail(`release: fabricated consensus framing: ${fab.join(', ')}`);
   }
 
   console.log(`  headline : ${brief.headline}`);

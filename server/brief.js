@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats } from './db.js';
+import { fetchMacroCompleted } from './macro.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CG           = 'https://api.coingecko.com/api/v3';
@@ -36,6 +37,16 @@ Describe the weather — never tell the reader whether to carry an umbrella.
 ## News timestamps are authoritative
 
 Each news item carries a published_utc timestamp. Only treat a headline as relevant to today's move if its timestamp falls within today's session. Never link today's move to a headline that predates it; older items are background context only. An empty news array is meaningful — it supports a "no clear catalyst" read.
+
+## Macro: completed vs scheduled
+
+The macro data has two parts and they are not interchangeable.
+
+macro.completed are releases that have ALREADY happened since the last brief. Each carries an actual and a previous value. You MAY cite these with their real numbers, using associative language against recent price action — for example "the move came alongside a CPI reading of 3.4%, up from 3.3% prior".
+
+macro.scheduled are events due later today. They have NO actual value. Never treat a scheduled event as an explanation for a move that has already happened; refer to it only as something ahead — "FOMC is due at 18:00".
+
+You do NOT have consensus or forecast figures. Frame any surprise on a completed release relative to its PREVIOUS reading ("came in at X, up from Y prior"), never relative to an expectation you were not given. Never invent a consensus number or say "versus expectations".
 
 ## Tone
 
@@ -229,9 +240,13 @@ export async function fetchSignals() {
     } catch { /* unparseable older row — leave null */ }
   }
 
-  // ForexFactory
+  // ForexFactory — forward schedule only; this feed never populates `actual`.
   const macroToday    = filterFfEvents(ffAll, today);
   const macroYesterday = filterFfEvents(ffAll, yesterday);
+
+  // Completed releases (BLS + FRED) — the actuals ForexFactory cannot supply.
+  const macroCompleted = await fetchMacroCompleted()
+    .catch(err => { console.error('[macro] completed-release fetch failed:', err.message); return []; });
 
   // News — merge both feeds, drop anything stale, newest first, cap at 8.
   // An empty array on a quiet day is correct: it reinforces "no clear catalyst".
@@ -264,6 +279,15 @@ export async function fetchSignals() {
       ? { fear_greed_value: parseInt(fng.value, 10), fear_greed_label: fng.value_classification }
       : null,
     liquidations_24h: null,
+    // Two lists, deliberately separate. `completed` prints carry real numbers and
+    // may be referenced; `scheduled` events have no actual yet and can never
+    // account for a move that already happened. Collapsing them reintroduces
+    // exactly that bug.
+    macro: {
+      scheduled: macroToday,
+      completed: macroCompleted,
+    },
+    // Retained so rows stored before the split still render.
     macro_today:      macroToday,
     macro_recent_24h: macroYesterday,
     news:             allNews,
@@ -680,7 +704,19 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
         return tile('Open interest', btcOi != null ? `${fmtOi(btcOi)} BTC` : 'n/a', ethOi != null ? `ETH ${fmtOi(ethOi)}` : '');
       })()}
       ${(() => {
-        const events = signals.macro_today ?? [];
+        // A completed print outranks a scheduled one — it has a real number.
+        const done = signals.macro?.completed ?? [];
+        if (done.length) {
+          const t = done[0];
+          const val = t.unit === 'k' ? `${t.actual >= 0 ? '+' : ''}${t.actual}k`
+                    : t.unit === '$' ? `$${t.actual}`
+                    : `${t.actual}%`;
+          const prev = t.previous == null ? 'released'
+                     : `from ${t.unit === 'k' ? `${t.previous}k` : t.unit === '$' ? `$${t.previous}` : `${t.previous}%`} prior`;
+          return tile(t.event.length > 20 ? t.event.slice(0, 18) + '…' : t.event, val, prev);
+        }
+        // Fall back to the schedule (and to the pre-split key for stored rows).
+        const events = signals.macro?.scheduled ?? signals.macro_today ?? [];
         const top = events.find(e => e.importance === 'high') ?? events[0] ?? null;
         const label = top ? (top.event.length > 22 ? top.event.slice(0, 20) + '…' : top.event) : 'Quiet';
         const sub   = top ? `${top.currency} · ${top.status}` : 'No high-impact events';

@@ -81,6 +81,12 @@ db.exec(`
     reset_date     TEXT    NOT NULL DEFAULT (date('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS macro_state (
+    series_id   TEXT PRIMARY KEY,
+    last_period TEXT,
+    updated_utc TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS daily_briefs (
     date         TEXT    PRIMARY KEY,
     signals_json TEXT    NOT NULL,
@@ -286,6 +292,20 @@ export function claimLinkCode(rawCode) {
 
   db.prepare(`DELETE FROM telegram_link_codes WHERE code = ?`).run(code);
   return row.wallet_address;
+}
+
+// ── macro_state ────────────────────────────────────────────────────────────
+// Tracks the newest period seen per series, so a release is detected by the
+// period advancing rather than by guessing at a publication calendar.
+export function getMacroPeriod(seriesId) {
+  return db.prepare(`SELECT last_period FROM macro_state WHERE series_id = ?`).get(seriesId)?.last_period ?? null;
+}
+
+export function setMacroPeriod(seriesId, period, updatedUtc) {
+  db.prepare(`
+    INSERT INTO macro_state(series_id, last_period, updated_utc) VALUES(?, ?, ?)
+    ON CONFLICT(series_id) DO UPDATE SET last_period = excluded.last_period, updated_utc = excluded.updated_utc
+  `).run(seriesId, period, updatedUtc);
 }
 
 // ── daily_briefs ───────────────────────────────────────────────────────────
