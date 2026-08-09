@@ -1,7 +1,8 @@
 import { config } from './config.js';
-import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats } from './db.js';
+import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries } from './db.js';
 import { fetchMacroCompleted } from './macro.js';
-import { SECTORS } from './sectors.js';
+import { SECTORS, fetchCategories, detectSectorSpike } from './sectors.js';
+import { cachedFetch } from './httpCache.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CG           = 'https://api.coingecko.com/api/v3';
@@ -49,6 +50,12 @@ macro.scheduled are events due later today. They have NO actual value. Never tre
 
 You do NOT have consensus or forecast figures. Frame any surprise on a completed release relative to its PREVIOUS reading ("came in at X, up from Y prior"), never relative to an expectation you were not given. Never invent a consensus number or say "versus expectations".
 
+## Sector spike
+
+market_state.sector_spike is null on almost every day. When it is null you say NOTHING about sectors — do not write "no sector spiked today", do not mention sectors at all, do not leave a gap for it. The brief reads exactly as if the field did not exist. Silence is the correct and normal output.
+
+When it is NOT null, a single sector moved sharply and diverged from the whole market, and it has already been verified against its own constituents before reaching you. Add sector_note: one or two sentences stating the move as fact against the market move, naming the sector. Mention a constituent only if top_movers makes it relevant. If nothing in the data explains the spike, say so plainly — a sector up 20% with no identifiable cause is a more useful and more honest thing to report than a fabricated reason. All the usual rules apply: no causal language, no verdict, no advice.
+
 ## Tone
 
 Professional and macro-literate. Concise. No emojis. No exclamation marks. No filler ("it's important to note", "as always"). Get to the point. Assume the reader is intelligent and time-poor.
@@ -64,7 +71,8 @@ Return ONLY valid JSON in exactly this shape. No preamble, no markdown fences.
   "drivers": [
     { "claim": "the specific factor referenced", "type": "fact | coincidence | unknown" }
   ],
-  "explained": "well-explained | partly-explained | unexplained"
+  "explained": "well-explained | partly-explained | unexplained",
+  "sector_note": "OMIT ENTIRELY unless sector_spike is non-null. One or two sentences."
 }
 
 Field rules:
@@ -170,17 +178,17 @@ export async function fetchSignals() {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
   const results = await Promise.allSettled([
-    /* 0 */ fetch(`${CG}/global`).then(r => r.ok ? r.json() : null),
-    /* 1 */ fetch(`${CG}/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true`).then(r => r.ok ? r.json() : null),
-    /* 2 */ fetch(FNG).then(r => r.ok ? r.json() : null),
-    /* 3 */ fetch(`${COINALYZE}/funding-rate?symbols=BTCUSDT_PERP.A,ETHUSDT_PERP.A&api_key=${config.coinalyzeApiKey}`).then(r => r.ok ? r.json() : null),
-    /* 4 */ fetch(`${COINALYZE}/open-interest?symbols=BTCUSDT_PERP.A,ETHUSDT_PERP.A&api_key=${config.coinalyzeApiKey}`).then(r => r.ok ? r.json() : null),
-    /* 5 */ fetch(`${FRED}/series/observations?series_id=CPIAUCSL&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=2`).then(r => r.ok ? r.json() : null),
-    /* 6 */ fetch(`${FRED}/series/observations?series_id=FEDFUNDS&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=1`).then(r => r.ok ? r.json() : null),
-    /* 7 */ fetch(`${FRED}/series/observations?series_id=DGS10&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=1`).then(r => r.ok ? r.json() : null),
-    /* 8 */ fetch(FF_CALENDAR).then(r => r.ok ? r.json() : null),
-    /* 9 */ fetch(CT_RSS).then(r => r.ok ? r.text() : null),
-    /* 10*/ fetch(DECRYPT_RSS).then(r => r.ok ? r.text() : null),
+    /* 0 */ cachedFetch(`${CG}/global`).then(r => r.ok ? r.json() : null),
+    /* 1 */ cachedFetch(`${CG}/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true`).then(r => r.ok ? r.json() : null),
+    /* 2 */ cachedFetch(FNG).then(r => r.ok ? r.json() : null),
+    /* 3 */ cachedFetch(`${COINALYZE}/funding-rate?symbols=BTCUSDT_PERP.A,ETHUSDT_PERP.A&api_key=${config.coinalyzeApiKey}`).then(r => r.ok ? r.json() : null),
+    /* 4 */ cachedFetch(`${COINALYZE}/open-interest?symbols=BTCUSDT_PERP.A,ETHUSDT_PERP.A&api_key=${config.coinalyzeApiKey}`).then(r => r.ok ? r.json() : null),
+    /* 5 */ cachedFetch(`${FRED}/series/observations?series_id=CPIAUCSL&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=2`).then(r => r.ok ? r.json() : null),
+    /* 6 */ cachedFetch(`${FRED}/series/observations?series_id=FEDFUNDS&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=1`).then(r => r.ok ? r.json() : null),
+    /* 7 */ cachedFetch(`${FRED}/series/observations?series_id=DGS10&api_key=${config.fredApiKey}&file_type=json&sort_order=desc&limit=1`).then(r => r.ok ? r.json() : null),
+    /* 8 */ cachedFetch(FF_CALENDAR).then(r => r.ok ? r.json() : null),
+    /* 9 */ cachedFetch(CT_RSS).then(r => r.ok ? r.text() : null),
+    /* 10*/ cachedFetch(DECRYPT_RSS).then(r => r.ok ? r.text() : null),
   ]);
 
   const v = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
@@ -245,6 +253,16 @@ export async function fetchSignals() {
   const macroToday    = filterFfEvents(ffAll, today);
   const macroYesterday = filterFfEvents(ffAll, yesterday);
 
+  // Sector spike — null on almost every day, which is the intended output.
+  // Any failure here degrades to null (silent) rather than blocking the brief.
+  let sectorSpike = null;
+  try {
+    const cats = await fetchCategories();
+    sectorSpike = await detectSectorSpike(cats, g?.market_cap_change_percentage_24h_usd ?? null);
+  } catch (err) {
+    console.error('[spike] detection skipped:', err.message);
+  }
+
   // Completed releases (BLS + FRED) — the actuals ForexFactory cannot supply.
   const macroCompleted = await fetchMacroCompleted()
     .catch(err => { console.error('[macro] completed-release fetch failed:', err.message); return []; });
@@ -280,6 +298,9 @@ export async function fetchSignals() {
       ? { fear_greed_value: parseInt(fng.value, 10), fear_greed_label: fng.value_classification }
       : null,
     liquidations_24h: null,
+    // null on quiet days. The prompt is explicit that null means say nothing —
+    // not "no sector spiked", which would create a slot that wants filling.
+    sector_spike: sectorSpike,
     // Two lists, deliberately separate. `completed` prints carry real numbers and
     // may be referenced; `scheduled` events have no actual yet and can never
     // account for a move that already happened. Collapsing them reintroduces
@@ -444,6 +465,144 @@ const fmtPct  = (v) => v == null ? 'n/a' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%
 const dirClass = (v) => v == null ? '' : v >= 0 ? 'up' : 'down';
 const fmtOi   = (v) => v == null ? 'n/a' : v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : String(Math.round(v));
 
+/**
+ * Type system. Serif for prose, mono for every number and label — the reader can
+ * tell data from writing without being told, which is the same distinction the
+ * product is built on. Tabular figures keep counting numbers from shifting the
+ * layout. Fonts are self-hosted (see the /fonts route) and `swap` means text is
+ * readable before they land.
+ */
+export const FONT_CSS = `
+  @font-face { font-family:'Newsreader'; font-style:normal; font-weight:300 600;
+    font-display:swap; src:url('/fonts/newsreader-300-600.woff2') format('woff2'); }
+  @font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:400;
+    font-display:swap; src:url('/fonts/ibm-plex-mono-400.woff2') format('woff2'); }
+  @font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:500;
+    font-display:swap; src:url('/fonts/ibm-plex-mono-500.woff2') format('woff2'); }
+  :root { --serif:'Newsreader', Georgia, 'Times New Roman', serif;
+          --mono:'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; }
+  body { font-family:var(--serif); font-optical-sizing:auto; -webkit-font-smoothing:antialiased; }
+  /* Everything numeric or label-like sits on the mono rail. */
+  .label, .value, .sub, .date, .explained, .driver-tag, .hero-pill, .rail-label,
+  .recent-date, .sub-note, .entry-date, .sources, .track-record, footer,
+  .today-label, .today-cap, .today-chg, .sector-links a, .brief-headline {
+    font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .value, .today-cap { letter-spacing:-.01em; }
+  h1, h2, .landing-h, .sub-title, .point-t, .hero-title { font-family:var(--serif); font-weight:600; }
+  .read p, .recent-line, .driver-claim, .point-d, .landing-sub, .hero-sub, .sub-copy {
+    font-family:var(--serif); }
+  .read p:first-child::first-letter { float:left; font-size:3.1em; line-height:.84;
+    padding:.06em .09em 0 0; font-weight:600; color:var(--a2); }
+`;
+
+/**
+ * Sparkline web component + motion. Sparklines are fed real stored history, so
+ * they carry signal rather than decoration. Motion is opt-out-aware: reduced
+ * motion skips the animation entirely rather than shortening it.
+ */
+export const ENHANCE_JS = `
+<script>
+(function(){
+  var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  class VrSpark extends HTMLElement {
+    connectedCallback(){
+      var v = (this.getAttribute('values')||'').split(',').map(Number).filter(function(n){return !isNaN(n);});
+      if (v.length < 2) { this.style.display='none'; return; }
+      var W=100,H=26,P=2, lo=Math.min.apply(null,v), hi=Math.max.apply(null,v), r=(hi-lo)||1;
+      var x=function(i){return (i/(v.length-1))*W;}, y=function(n){return H-P-((n-lo)/r)*(H-P*2);};
+      var pts=v.map(function(n,i){return x(i).toFixed(2)+','+y(n).toFixed(2);}).join(' ');
+      var rising=v[v.length-1]>=v[0];
+      var c=getComputedStyle(this).getPropertyValue(rising?'--up':'--down').trim();
+      this.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true" '+
+        'style="width:100%;height:100%;overflow:visible">'+
+        '<polygon points="0,'+H+' '+pts+' '+W+','+H+'" fill="'+c+'" opacity=".10"></polygon>'+
+        '<polyline points="'+pts+'" fill="none" stroke="'+c+'" stroke-width="1.25" '+
+        'stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>'+
+        '<circle cx="'+x(v.length-1)+'" cy="'+y(v[v.length-1])+'" r="1.7" fill="'+c+'"></circle></svg>';
+    }
+  }
+  if (!customElements.get('vr-spark')) customElements.define('vr-spark', VrSpark);
+
+  function countUp(el){
+    var target=parseFloat(el.dataset.count), dp=+(el.dataset.dp||0);
+    var pre=el.dataset.prefix||'', suf=el.dataset.suffix||'';
+    var fmt=function(n){return pre+n.toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp})+suf;};
+    if (still){ el.textContent=fmt(target); return; }
+    var dur=800, t0=performance.now();
+    (function step(t){
+      var p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3);
+      el.textContent=fmt(target*e);
+      if(p<1) requestAnimationFrame(step); else el.textContent=fmt(target);
+    })(t0);
+  }
+
+  var reveals=document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window) || still){
+    reveals.forEach(function(el){ el.classList.add('in'); });
+    document.querySelectorAll('[data-count]').forEach(countUp);
+    return;
+  }
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      e.target.classList.add('in');
+      e.target.querySelectorAll('[data-count]').forEach(countUp);
+      io.unobserve(e.target);
+    });
+  },{threshold:.12});
+  reveals.forEach(function(el,i){ el.style.transitionDelay=(i*55)+'ms'; io.observe(el); });
+})();
+</script>`;
+
+export const MOTION_CSS = `
+  .reveal { opacity:0; transform:translateY(9px);
+            transition:opacity .5s ease, transform .5s ease; }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity:1; transform:none; transition:none; }
+  }
+  vr-spark { display:block; margin-top:9px; height:26px; }
+`;
+
+/**
+ * Sits at the foot of the page, after the reader has finished and found it
+ * useful — not a popup that interrupts before the value has been shown.
+ * Works without JavaScript (plain POST to a confirmation page); the inline
+ * script only upgrades it to submit without navigating away.
+ */
+export const SUBSCRIBE_BLOCK = `
+    <section class="subscribe" id="subscribe">
+      <h2 class="sub-title">Get tomorrow's brief.</h2>
+      <p class="sub-copy">The same honest read, in your inbox each morning —
+        including the mornings it says there's no clear catalyst.</p>
+      <form class="sub-form" method="POST" action="/subscribe">
+        <input type="email" name="email" required maxlength="254" autocomplete="email"
+               placeholder="you@email.com" aria-label="Email address">
+        <button type="submit">Send it</button>
+      </form>
+      <p class="sub-note" role="status">One email a day. No spam, no advice, unsubscribe from any of them.
+        Your address is used only to send the brief and is never shared.</p>
+    </section>
+    <script>
+      (function () {
+        var f = document.querySelector('.sub-form'); if (!f) return;
+        f.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var note = document.querySelector('.sub-note');
+          var btn = f.querySelector('button'); btn.disabled = true;
+          fetch('/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ email: f.email.value, source: 'brief' })
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.ok) { f.style.display = 'none'; note.textContent = "You're on the list — tomorrow's brief lands in the morning."; }
+            else { btn.disabled = false; note.textContent = d.error || 'Could not save that. Try again.'; }
+          }).catch(function () { f.submit(); });
+        });
+      })();
+    </script>`;
+
 const prettyDay = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', {
   day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
 });
@@ -462,7 +621,7 @@ function briefSummary(row) {
 // ── renderBrief ──────────────────────────────────────────────────────────────
 
 export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
-  const { landing = false, honesty = null } = opts;
+  const { landing = false, honesty = null, spark = null } = opts;
   const mc  = signals.market ?? {};
   const btc = signals.assets?.BTC ?? {};
   const eth = signals.assets?.ETH ?? {};
@@ -471,6 +630,13 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
 
   const dir = mc.total_market_cap_change_24h_pct == null ? 'moving'
             : mc.total_market_cap_change_24h_pct >= 0 ? 'up' : 'down';
+
+  // Every number on this page is a snapshot taken when the brief was generated —
+  // it is the evidence the prose reasons about, so it must not move. Saying so is
+  // the same discipline the product applies to its claims, applied to itself.
+  const asOf = signals.as_of_utc
+    ? `${new Date(signals.as_of_utc).toISOString().slice(11, 16)} UTC`
+    : null;
 
   const prettyDate = new Date(`${signals.date}T00:00:00Z`).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
@@ -481,11 +647,16 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
               + `BTC ${fmtPct(btc.change_24h_pct)}, ETH ${fmtPct(eth.change_24h_pct)}, `
               + `SOL ${fmtPct(sol.change_24h_pct)}. What moved and what coincided with it.`;
 
-  const tile = (label, value, sub, cls = '') => `
+  const sparkTag = (series) =>
+    Array.isArray(series) && series.length > 1
+      ? `<vr-spark values="${series.join(',')}"></vr-spark>` : '';
+
+  const tile = (label, value, sub, cls = '', series = null) => `
       <div class="tile">
         <div class="label">${esc(label)}</div>
         <div class="value ${cls}">${esc(value)}</div>
         <div class="sub ${cls}">${esc(sub)}</div>
+        ${sparkTag(series)}
       </div>`;
 
   // Brief prose
@@ -522,17 +693,23 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
       </div>`
     : '';
 
-  // Recent briefs — older entries only, so a stored page's rail never goes stale
+  // Recent briefs sit full-width BELOW the prose, not in the rail. The rail is
+  // only as tall as the drivers list, so pairing it with a long link list left a
+  // dead column beside the prose whenever the read was short.
   const recentHtml = recentBriefs.length
-    ? `<div class="rail-block">
-        <div class="rail-label">Recent briefs</div>
-        ${recentBriefs.map(b => `
-        <a class="recent-item" href="/brief/${esc(b.date)}">
-          <span class="recent-date">${esc(prettyDay(b.date))}</span>
-          <span class="recent-line">${esc(briefSummary(b))}</span>
-        </a>`).join('')}
-        <a class="rail-more" href="/brief">All briefs →</a>
-      </div>`
+    ? `<section class="recent">
+        <div class="recent-head">
+          <div class="rail-label">Recent briefs</div>
+          <a class="rail-more" href="/brief">All briefs →</a>
+        </div>
+        <div class="recent-grid">
+          ${recentBriefs.map(b => `
+          <a class="recent-card" href="/brief/${esc(b.date)}">
+            <span class="recent-date">${esc(prettyDay(b.date))}</span>
+            <span class="recent-line">${esc(briefSummary(b))}</span>
+          </a>`).join('')}
+        </div>
+      </section>`
     : '';
 
   return `<!doctype html>
@@ -581,6 +758,8 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
             --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); }
   }
   * { box-sizing: border-box; }
+  ${FONT_CSS}
+  ${MOTION_CSS}
   body { margin:0; background:var(--bg); color:var(--fg); position:relative;
          font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   /* Soft aurora behind the top of the page — depth without decoration. */
@@ -703,11 +882,17 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
                         margin-bottom:11px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
   .rail-more  { display:inline-block; margin-top:12px; font-size:12.5px; color:var(--muted); text-decoration:none; }
   .rail-more:hover { text-decoration:underline; }
-  .recent-item { display:block; padding:9px 8px 9px 0; border-bottom:1px solid var(--line);
-                 text-decoration:none; color:inherit; border-radius:8px;
-                 transition:background .15s ease, padding-left .15s ease; }
-  .recent-item:hover { background:var(--bg); padding-left:8px; }
-  .recent-item:last-of-type { border-bottom:0; }
+  .recent { margin-top:44px; padding-top:22px; border-top:1px solid var(--line); }
+  .recent-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+  .recent-head .rail-label { margin-bottom:14px; }
+  .recent-grid { display:grid; grid-template-columns:1fr; gap:12px; }
+  @media (min-width:640px) { .recent-grid { grid-template-columns:repeat(2,1fr); } }
+  @media (min-width:960px) { .recent-grid { grid-template-columns:repeat(3,1fr); } }
+  .recent-card { display:block; padding:14px 16px; background:var(--card);
+                 border:1px solid var(--line); border-radius:11px;
+                 text-decoration:none; color:inherit;
+                 transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .recent-card:hover { transform:translateY(-2px); box-shadow:var(--shadow); border-color:transparent; }
   .driver:last-child { margin-bottom:0; }
   .recent-date { display:block; font-size:11.5px; color:var(--muted); }
   .recent-line { display:block; font-size:13.5px; line-height:1.45; margin-top:2px; }
@@ -718,6 +903,33 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
   .driver-tag--fact        { background:rgba(0,200,224,.15);  color:#00c8e0; }
   .driver-tag--coincidence { background:rgba(112,0,224,.15);  color:#a366e0; }
   .driver-tag--unknown     { background:rgba(150,150,150,.15);color:var(--muted); }
+  /* Only ever rendered when a spike cleared every guard — no empty state exists. */
+  .spike { margin:0 0 26px; padding:15px 18px; background:var(--card);
+           border:1px solid var(--line); border-left:3px solid var(--a2); border-radius:11px; }
+  .spike-label { font-family:var(--mono); font-size:10.5px; color:var(--muted);
+                 text-transform:uppercase; letter-spacing:.09em; margin-bottom:6px; }
+  .spike-note { margin:0; font-size:15px; line-height:1.55; }
+  .spike-link { display:inline-block; margin-top:9px; font-family:var(--mono);
+                font-size:12px; color:var(--muted); text-decoration:none; }
+  .spike-link:hover { text-decoration:underline; }
+  .as-of { font-family:var(--mono); font-size:11.5px; color:var(--muted); letter-spacing:.02em;
+           margin:-22px 0 30px; line-height:1.5; }
+  .subscribe { margin-top:44px; padding:26px 24px; background:var(--card);
+               border:1px solid var(--line); border-radius:14px; }
+  .sub-title { font-size:20px; font-weight:700; letter-spacing:-.02em; margin:0 0 7px; }
+  .sub-copy  { color:var(--muted); font-size:14.5px; margin:0 0 16px; max-width:56ch; line-height:1.55; }
+  .sub-form  { display:flex; flex-wrap:wrap; gap:9px; margin-bottom:12px; }
+  .sub-form input { flex:1 1 240px; min-width:0; font:inherit; font-size:14.5px;
+                    padding:11px 14px; border-radius:9px; border:1px solid var(--line);
+                    background:var(--bg); color:var(--fg); }
+  .sub-form input:focus { outline:none; border-color:var(--a1); }
+  .sub-form button { font:inherit; font-size:14.5px; font-weight:650; color:#fff; border:0;
+                     padding:11px 22px; border-radius:9px; cursor:pointer;
+                     background:linear-gradient(90deg,var(--a1),var(--a2));
+                     box-shadow:0 6px 18px rgba(112,0,224,.24); }
+  .sub-form button:hover:not(:disabled) { filter:brightness(1.07); }
+  .sub-form button:disabled { opacity:.6; cursor:default; }
+  .sub-note  { color:var(--muted); font-size:12.5px; margin:0; line-height:1.55; }
   footer { margin-top:40px; padding-top:20px; border-top:1px solid var(--line);
            color:var(--muted); font-size:13px; }
 </style>
@@ -762,7 +974,7 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
         </div>
         <div>
           <p class="point-t">One brief a day</p>
-          <p class="point-d">No alerts, no price targets, no urgency. Published each morning at 06:00 UTC,
+          <p class="point-d">No alerts, no price targets, no urgency. Published each morning,
             then it stops talking. Free to read, no account needed.</p>
         </div>
       </div>
@@ -787,7 +999,7 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
     ` : `
     <div class="hero">
       <p class="hero-title">The daily crypto market brief.</p>
-      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning at 06:00 UTC, free to read, no account needed.</p>
+      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning, free to read, no account needed.</p>
       <div class="hero-rule">
         Every claim is tagged
         <span class="hero-pill">Fact</span>
@@ -805,13 +1017,13 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
       ${explainedHtml}
     </div>
 
-    <div class="tiles">
-      ${tile('Total market cap', fmtUsd(mc.total_market_cap_usd), `${fmtPct(mc.total_market_cap_change_24h_pct)} 24h`, dirClass(mc.total_market_cap_change_24h_pct))}
-      ${tile('Bitcoin',   fmtUsd(btc.price_usd), `${fmtPct(btc.change_24h_pct)} 24h`, dirClass(btc.change_24h_pct))}
-      ${tile('Ethereum',  fmtUsd(eth.price_usd), `${fmtPct(eth.change_24h_pct)} 24h`, dirClass(eth.change_24h_pct))}
-      ${tile('Solana',    fmtUsd(sol.price_usd), `${fmtPct(sol.change_24h_pct)} 24h`, dirClass(sol.change_24h_pct))}
-      ${tile('BTC dominance', mc.btc_dominance_pct == null ? 'n/a' : `${mc.btc_dominance_pct.toFixed(1)}%`, mc.eth_dominance_pct == null ? '' : `ETH ${mc.eth_dominance_pct.toFixed(1)}%`)}
-      ${tile('Fear & Greed',  fg ? String(fg.fear_greed_value) : 'n/a', fg ? fg.fear_greed_label : '')}
+    <div class="tiles reveal">
+      ${tile('Total market cap', fmtUsd(mc.total_market_cap_usd), `${fmtPct(mc.total_market_cap_change_24h_pct)} 24h`, dirClass(mc.total_market_cap_change_24h_pct), spark?.mcap)}
+      ${tile('Bitcoin',   fmtUsd(btc.price_usd), `${fmtPct(btc.change_24h_pct)} 24h`, dirClass(btc.change_24h_pct), spark?.btc)}
+      ${tile('Ethereum',  fmtUsd(eth.price_usd), `${fmtPct(eth.change_24h_pct)} 24h`, dirClass(eth.change_24h_pct), spark?.eth)}
+      ${tile('Solana',    fmtUsd(sol.price_usd), `${fmtPct(sol.change_24h_pct)} 24h`, dirClass(sol.change_24h_pct), spark?.sol)}
+      ${tile('BTC dominance', mc.btc_dominance_pct == null ? 'n/a' : `${mc.btc_dominance_pct.toFixed(1)}%`, mc.eth_dominance_pct == null ? '' : `ETH ${mc.eth_dominance_pct.toFixed(1)}%`, '', spark?.dom)}
+      ${tile('Fear & Greed',  fg ? String(fg.fear_greed_value) : 'n/a', fg ? fg.fear_greed_label : '', '', spark?.fg)}
       ${(() => {
         const btcOi = signals.open_interest?.BTC?.contracts;
         const ethOi = signals.open_interest?.ETH?.contracts;
@@ -838,21 +1050,33 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
       })()}
     </div>
 
-    <div class="body">
+    ${synthesis?.sector_note ? `<div class="spike col">
+      <div class="spike-label">Sector move</div>
+      <p class="spike-note">${esc(synthesis.sector_note)}</p>
+      ${signals.sector_spike?.slug ? `<a class="spike-link" href="/sector/${esc(signals.sector_spike.slug)}">Full ${esc(signals.sector_spike.label)} read →</a>` : ''}
+    </div>` : ''}
+
+    ${asOf ? `<p class="as-of">Market data as of ${esc(asOf)} on ${esc(prettyDate)} — captured once daily when the brief is written, and not updated afterwards.</p>` : ''}
+
+    <div class="body reveal">
       <div class="read">
         ${briefHtml}
       </div>
       <aside class="rail">
         ${driversHtml}
-        ${recentHtml}
       </aside>
     </div>
+
+    ${recentHtml}
+
+    ${SUBSCRIBE_BLOCK}
 
     <footer>
       Vrynn reports what moved and what coincided with it. It does not assert causation
       and does not provide investment advice. Data: CoinGecko, Alternative.me, Coinalyze, FRED, ForexFactory, CoinTelegraph, Decrypt.
     </footer>
   </div>
+  ${ENHANCE_JS}
 </body>
 </html>`;
 }
@@ -905,6 +1129,8 @@ export function renderArchive(briefs) {
             --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); }
   }
   * { box-sizing: border-box; }
+  ${FONT_CSS}
+  ${MOTION_CSS}
   body { margin:0; background:var(--bg); color:var(--fg); position:relative;
          font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   body::before { content:''; position:absolute; top:0; left:0; right:0; height:520px;
@@ -948,7 +1174,7 @@ export function renderArchive(briefs) {
 
     <div class="hero">
       <p class="hero-title">The daily crypto market brief.</p>
-      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning at 06:00 UTC, free to read, no account needed.</p>
+      <p class="hero-sub">What moved — and what merely coincided with it. Published every morning, free to read, no account needed.</p>
     </div>
 
     <h1>Every brief</h1>
@@ -1000,7 +1226,7 @@ export async function getBriefHtml(date) {
   const signals   = await fetchSignals();
   const synthesis = await synthesize(signals);
   const recent    = getRecentBriefs(today, 5);
-  const html      = renderBrief(signals, synthesis, recent);
+  const html      = renderBrief(signals, synthesis, recent, { spark: getSparkSeries(today) });
 
   if (synthesis) {
     saveDailyBrief({
@@ -1037,14 +1263,14 @@ export async function getHomepageHtml() {
   if (!row) {
     const signals   = await fetchSignals();
     const synthesis = await synthesize(signals);
-    return renderBrief(signals, synthesis, getRecentBriefs(today, 5), { landing: true, honesty });
+    return renderBrief(signals, synthesis, getRecentBriefs(today, 6), { landing: true, honesty, spark: getSparkSeries(today) });
   }
 
   const html = renderBrief(
     JSON.parse(row.signals_json),
     synthesisFromRow(row),
-    getRecentBriefs(today, 5),
-    { landing: true, honesty },
+    getRecentBriefs(today, 6),
+    { landing: true, honesty, spark: getSparkSeries(today) },
   );
   cache = { ...cache, date: today, home: html };
   return html;

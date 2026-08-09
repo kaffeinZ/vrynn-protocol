@@ -1,6 +1,8 @@
 import { config } from './config.js';
 import { BLS_SERIES, FRED_SERIES } from './macroSeries.js';
 import { getMacroPeriod, setMacroPeriod } from './db.js';
+import { notifyAdmin } from './notify.js';
+import { cachedFetch } from './httpCache.js';
 
 const BLS_V1 = 'https://api.bls.gov/publicAPI/v1/timeseries/data/';
 const FRED   = 'https://api.stlouisfed.org/fred/series/observations';
@@ -18,7 +20,7 @@ export async function fetchBls() {
   // comparison sits two calendar years behind the current one.
   const year = new Date().getUTCFullYear();
 
-  const res = await fetch(BLS_V1, {
+  const res = await cachedFetch(BLS_V1, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seriesid: ids, startyear: String(year - 2), endyear: String(year) }),
@@ -73,7 +75,7 @@ export async function fetchFred() {
     try {
       const url = `${FRED}?series_id=${cfg.id}&api_key=${config.fredApiKey}`
                 + `&file_type=json&sort_order=desc&limit=2&units=${cfg.units}`;
-      const res = await fetch(url);
+      const res = await cachedFetch(url);
       if (!res.ok) return;
       const obs = ((await res.json())?.observations ?? []).filter(o => o.value !== '.');
       if (!obs.length) return;
@@ -123,11 +125,29 @@ export function detectCompleted(all, { seed = false } = {}) {
   return completed;
 }
 
-/** Gather both sources and return the releases that landed since the last brief. */
+/**
+ * Gather both sources and return the releases that landed since the last brief.
+ *
+ * A source being down degrades to "no completed releases" — which on the page is
+ * indistinguishable from a genuinely quiet week. That silent equivalence is the
+ * problem: "no prints since Tuesday" and "BLS has been 503 since Tuesday" look
+ * identical to a reader and to us. So a source failure is surfaced, not merely
+ * logged. Both sources failing means the macro read is blind, not quiet.
+ */
 export async function fetchMacroCompleted(opts = {}) {
+  const failures = [];
   const [bls, fred] = await Promise.all([
-    fetchBls().catch(err => { console.error('[macro] BLS failed:', err.message);  return {}; }),
-    fetchFred().catch(err => { console.error('[macro] FRED failed:', err.message); return {}; }),
+    fetchBls().catch(err  => { failures.push(`BLS: ${err.message}`);  return {}; }),
+    fetchFred().catch(err => { failures.push(`FRED: ${err.message}`); return {}; }),
   ]);
+
+  if (failures.length) {
+    const blind = failures.length === 2;
+    await notifyAdmin(
+      blind ? 'macro sources BOTH down — completed releases are blind, not quiet'
+            : `macro source unavailable (${failures.length}/2)`,
+      failures.join('\n'),
+    );
+  }
   return detectCompleted({ ...bls, ...fred }, opts);
 }

@@ -81,6 +81,16 @@ db.exec(`
     reset_date     TEXT    NOT NULL DEFAULT (date('now'))
   );
 
+  -- UK data protection: an unsubscribe token exists from the first row, not
+  -- retrofitted later, and the page states what the address is used for.
+  CREATE TABLE IF NOT EXISTS subscribers (
+    email             TEXT PRIMARY KEY,
+    unsubscribe_token TEXT NOT NULL UNIQUE,
+    source            TEXT,
+    created_at        INTEGER NOT NULL DEFAULT (unixepoch()),
+    unsubscribed_at   INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS sector_briefs (
     date           TEXT NOT NULL,
     sector_slug    TEXT NOT NULL,
@@ -306,6 +316,46 @@ export function claimLinkCode(rawCode) {
   return row.wallet_address;
 }
 
+// ── subscribers ────────────────────────────────────────────────────────────
+import { randomUUID } from 'node:crypto';
+
+/** Idempotent. Re-subscribing after an unsubscribe clears the flag and keeps the
+ *  original token, so an old unsubscribe link never silently stops working. */
+export function addSubscriber(email, source = 'brief') {
+  const normalized = String(email).trim().toLowerCase();
+  const existing = db.prepare(`SELECT * FROM subscribers WHERE email = ?`).get(normalized);
+
+  if (existing) {
+    if (existing.unsubscribed_at) {
+      db.prepare(`UPDATE subscribers SET unsubscribed_at = NULL WHERE email = ?`).run(normalized);
+    }
+    return { email: normalized, token: existing.unsubscribe_token, alreadyKnown: true };
+  }
+
+  const token = randomUUID();
+  db.prepare(`INSERT INTO subscribers(email, unsubscribe_token, source) VALUES(?, ?, ?)`)
+    .run(normalized, token, source);
+  return { email: normalized, token, alreadyKnown: false };
+}
+
+export function unsubscribeByToken(token) {
+  const info = db.prepare(`
+    UPDATE subscribers SET unsubscribed_at = unixepoch()
+    WHERE unsubscribe_token = ? AND unsubscribed_at IS NULL
+  `).run(token);
+  if (info.changes) return 'removed';
+  const row = db.prepare(`SELECT 1 FROM subscribers WHERE unsubscribe_token = ?`).get(token);
+  return row ? 'already-removed' : 'unknown';
+}
+
+export function getSubscriberStats() {
+  return db.prepare(`
+    SELECT COUNT(*) AS total,
+           SUM(CASE WHEN unsubscribed_at IS NULL THEN 1 ELSE 0 END) AS active
+    FROM subscribers
+  `).get();
+}
+
 // ── sector_briefs ──────────────────────────────────────────────────────────
 export function saveSectorBrief({ date, slug, aggregate, synthesis, html }) {
   db.prepare(`
@@ -378,6 +428,28 @@ export function getDailyBrief(date) {
 
 export function getAllBriefs() {
   return db.prepare(`SELECT date, brief_text, headline, explained FROM daily_briefs ORDER BY date DESC`).all();
+}
+
+/** Trailing history for the tile sparklines — real stored values, oldest first.
+ *  Returns whatever exists; the component hides itself below two points. */
+export function getSparkSeries(uptoDate, days = 8) {
+  const rows = db.prepare(`
+    SELECT signals_json FROM daily_briefs
+    WHERE date <= ? ORDER BY date DESC LIMIT ?
+  `).all(uptoDate, days).reverse();
+
+  const out = { mcap: [], btc: [], eth: [], sol: [], fg: [], dom: [] };
+  for (const r of rows) {
+    let s; try { s = JSON.parse(r.signals_json); } catch { continue; }
+    if (!s?.market || !s?.assets) continue;
+    if (s.market.total_market_cap_usd != null) out.mcap.push(Math.round(s.market.total_market_cap_usd / 1e9));
+    if (s.assets.BTC?.price_usd != null) out.btc.push(Math.round(s.assets.BTC.price_usd));
+    if (s.assets.ETH?.price_usd != null) out.eth.push(Math.round(s.assets.ETH.price_usd));
+    if (s.assets.SOL?.price_usd != null) out.sol.push(+Number(s.assets.SOL.price_usd).toFixed(2));
+    if (s.sentiment?.fear_greed_value != null) out.fg.push(s.sentiment.fear_greed_value);
+    if (s.market.btc_dominance_pct != null) out.dom.push(+Number(s.market.btc_dominance_pct).toFixed(2));
+  }
+  return out;
 }
 
 /** Rows that actually produced a page, for the sitemap.

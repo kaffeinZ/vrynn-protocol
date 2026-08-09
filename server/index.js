@@ -11,7 +11,7 @@ import rateLimit from 'express-rate-limit';
 import { getBriefHtml, getHomepageHtml, renderArchive } from './brief.js';
 import { startBriefCron } from './cron.js';
 import { getAllBriefs, getSitemapEntries, getDailyBrief, getLatestSectorBrief, getSectorBrief,
-         getSectorDates, getSectorSitemapEntries } from './db.js';
+         getSectorDates, getSectorSitemapEntries, addSubscriber, unsubscribeByToken } from './db.js';
 import { sectorBySlug, SECTORS } from './sectors.js';
 import { renderSectorPage } from './sectorPage.js';
 import { getOgPng } from './og.js';
@@ -33,6 +33,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use('/api', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
 
@@ -53,6 +54,23 @@ const FAVICON = readFileSync(
 );
 app.get('/favicon.svg', (_req, res) => {
   res.type('image/svg+xml').set('Cache-Control', 'public, max-age=86400').send(FAVICON);
+});
+
+// ── Self-hosted fonts ──────────────────────────────────────────────────────
+// Not loaded from Google's CDN, for two reasons: it costs two render-blocking
+// external requests on a site whose whole strategy is being fast and crawlable,
+// and it sends every visitor's IP to Google — which UK/EU data protection makes
+// a live exposure. Self-hosted is faster and removes it entirely.
+const FONT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../dashboard/public/fonts');
+const FONTS = new Map();
+for (const f of ['newsreader-300-600.woff2', 'ibm-plex-mono-400.woff2', 'ibm-plex-mono-500.woff2']) {
+  try { FONTS.set(f, readFileSync(resolve(FONT_DIR, f))); }
+  catch (err) { console.error(`[fonts] missing ${f}:`, err.message); }
+}
+app.get('/fonts/:file', (req, res) => {
+  const buf = FONTS.get(req.params.file);
+  if (!buf) return res.status(404).type('text/plain').send('Not found.');
+  res.type('font/woff2').set('Cache-Control', 'public, max-age=31536000, immutable').send(buf);
 });
 
 // ── OG share cards ─────────────────────────────────────────────────────────
@@ -142,6 +160,73 @@ ${urls.map(u => `  <url>
     console.error('[sitemap] generation failed:', err.message);
     res.status(503).type('text/plain').send('Sitemap temporarily unavailable.');
   }
+});
+
+// ── Email capture ──────────────────────────────────────────────────────────
+// No sending pipeline yet — this banks addresses so a launch that works does not
+// evaporate. Deliberately tighter rate limiting than /api, and the response is
+// identical whether or not the address was already known (no enumeration).
+const subscribeLimiter = rateLimit({
+  windowMs: 60 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false,
+});
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const miniPage = (title, body) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} | Vrynn</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+<meta name="robots" content="noindex">
+<style>
+ :root{--bg:#fcfcfd;--fg:#0f1115;--muted:#5b6070;--line:#e6e7ec}
+ @media(prefers-color-scheme:dark){:root{--bg:#0b0c10;--fg:#eef0f4;--muted:#9aa0b0;--line:#23252d}}
+ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+ .w{max-width:560px;margin:0 auto;padding:64px 20px}
+ .brand{font-weight:800;font-size:22px;letter-spacing:-.02em;background:linear-gradient(90deg,#00c8e0,#7000e0);
+        -webkit-background-clip:text;background-clip:text;color:transparent;text-decoration:none}
+ h1{font-size:26px;letter-spacing:-.02em;margin:28px 0 10px}
+ p{color:var(--muted);margin:0 0 14px}
+ a.back{color:var(--muted);font-size:14px}
+</style></head><body><div class="w">
+<a class="brand" href="/">Vrynn</a>${body}
+<p><a class="back" href="/">← Back to today's brief</a></p>
+</div></body></html>`;
+
+app.post('/subscribe', subscribeLimiter, (req, res) => {
+  const email = String(req.body?.email ?? '').trim();
+  const wantsJson = (req.get('accept') || '').includes('application/json');
+
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    if (wantsJson) return res.status(400).json({ ok: false, error: 'Enter a valid email address.' });
+    return res.status(400).send(miniPage('Check that address',
+      `<h1>That address doesn't look right</h1><p>Have another go — nothing was saved.</p>`));
+  }
+
+  try {
+    addSubscriber(email, String(req.body?.source ?? 'brief').slice(0, 32));
+  } catch (err) {
+    console.error('[subscribe] failed:', err.message);
+    if (wantsJson) return res.status(503).json({ ok: false, error: 'Could not save that right now.' });
+    return res.status(503).send(miniPage('Something went wrong',
+      `<h1>Could not save that right now</h1><p>Please try again shortly.</p>`));
+  }
+
+  if (wantsJson) return res.json({ ok: true });
+  res.send(miniPage('You are on the list',
+    `<h1>You're on the list</h1>
+     <p>Tomorrow's brief will land at 06:00 UTC — including the mornings it says there's no clear catalyst.</p>
+     <p>One email a day. Nothing else, ever. You can unsubscribe from any of them.</p>`));
+});
+
+app.get('/unsubscribe/:token', (req, res) => {
+  const result = unsubscribeByToken(req.params.token);
+  if (result === 'unknown') {
+    return res.status(404).send(miniPage('Link not recognised',
+      `<h1>That link isn't recognised</h1><p>It may already have been used.</p>`));
+  }
+  res.send(miniPage('Unsubscribed',
+    `<h1>Unsubscribed</h1><p>Your address has been removed. No further emails will be sent.</p>`));
 });
 
 // ── Sector pages ───────────────────────────────────────────────────────────

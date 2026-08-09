@@ -38,6 +38,23 @@ account layer, but it is no longer the product.
 - **Cleanup protocol:** every step leaves nothing dead behind — removed code,
   files, deps, DB tables and storage are deleted *and recorded in the Cleanup
   Ledger*. No orphans, no "temporarily commented out".
+- **Validate every aggregate against its own components before publishing.**
+  Any number you did not compute yourself — a vendor's category total, a sector
+  change, an index level — gets cross-checked against the parts it claims to
+  summarise. Every data error this project has shipped or nearly shipped was
+  caught by exactly this move, three times over: `liquid-staking-tokens` claiming
+  a $26.9M cap against $34.1B of constituents (1268× wrong); `DFEDTARU` firing a
+  "release" every day because a daily series always advances; `real-world-assets-rwa`
+  publishing "−35%" that was CoinGecko dropping a constituent, not a market move.
+  All three looked entirely plausible. **Any new data source meets this bar on
+  arrival, not after it burns you.**
+- **Verification scales with the size of the claim.** The corollary, and the
+  harder half. "Reject anything unverifiable" is the obvious tightening and it is
+  worse than the bug — one transient API failure took out 11 of 12 sector pages in
+  testing, which is a bigger failure than one page occasionally being wrong.
+  Bounded-downside claims may ship unverified with a warning; extraordinary ones
+  may not. Tighten a guard against the failure you just saw and you will create a
+  larger one you have not seen yet.
 
 ### Status: ✅ done · 🔨 in progress · ⏳ next · 💤 parked · 🗑️ removed
 
@@ -60,6 +77,146 @@ _Record every removal here so nothing is silently orphaned._
 - **2026-07-25** — Deleted 3 orphaned React components with zero importers: `dashboard/src/components/AlertHistory.jsx`, `MarketsPanel.jsx`, `TelegramLink.jsx`. Verified unreferenced by grep before removal; dashboard build re-run clean after. No deps, DB tables, or routes removed alongside — `useMarkets` still has other importers.
 - **2026-07-26** — Deleted `dashboard/public/favicon-v2.svg`. Two favicons existed; `index.html` referenced v2 and `favicon.svg` was orphaned. New mark written to the canonical `favicon.svg`, all references repointed, v2 removed. Dashboard rebuilt (`dist/` no longer carries it) and `/favicon-v2.svg` confirmed 404.
 - _Known follow-ups (not yet removed, still wired):_ the Telegram flow is disabled at `server/index.js` (`startBot()`/`startMonitor()` not called) but `telegram_link_codes` table + `createLinkCode`/`claimLinkCode` in `db.js` remain. Old protocol dashboard (`server/protocols/*`, `PositionCard`, `useVrynn`, etc.) is **live**, not dead — it is removed in P5 when the new portfolio view replaces it.
+
+### Sector spike notifier + the RWA incident (2026-08-09)
+
+**Built.** A notification, not a ranker — it fires only when a curated sector clears every bar and
+is silent otherwise. Silence is the normal output: on a quiet day the brief renders exactly as if
+the feature did not exist (no line, no empty block, no "nothing spiked today" — a slot that wants
+filling is how bars get lowered). Admission tests, all in code before the model sees anything:
+`|move| ≥ 8%`, divergence from the market `≥ 5pp`, cap `≥ $1B`, `≥ 8` constituents, and
+cap-weighted constituent cross-validation within `12pp`. `sector_note` is an OPTIONAL synthesis
+field, so its absence can never fail a run. Both paths verified end to end.
+
+**Testing it found a false number already live on the site.** `/sector/rwa` was publishing
+*"RWA sector plunges 35%"* while its own 50 constituents were cap-weighted at **−0.89%**. The
+category cap had gone from $62.8B to $40.4B — CoinGecko dropping a constituent, i.e. a composition
+change, not a market move. Page pulled immediately (the route now falls back to the previous valid
+read).
+
+**Root cause: `validateCategory` only ever checked the CAP, never the CHANGE.** RWA's cap was
+consistent with its top-3, so it passed. Fixed — every sector is now cross-validated on its 24h
+change at generation time via `validateChangeAgainstConstituents()`, not just spike candidates.
+The comparison is **cap-weighted**, because the category figure is cap-weighted and an
+equal-weighted mean would falsely reject legitimate moves carried by one large constituent.
+Verified: RWA rejected (34pp gap), DeFi accepted (0.08pp), Gaming accepted (4.6pp — a real rally).
+
+**Unverifiable ≠ broken — verification is required in proportion to the size of the claim.**
+The first version of this fix rejected anything it could not verify, which meant a single transient
+429 took out *every* sector page at once (observed: 11 of 12 rejected on `n/a` during testing —
+a self-inflicted near-miss, caught before it ever ran on a cron). But blanket-accepting unverified
+data is the hole RWA fell through. The split, since a composition-change artefact shows up as a
+*large* spurious move: an unverifiable move under `UNVERIFIED_MOVE_CEILING` (5%) ships with a
+warning — bounded downside — while an unverifiable move at or above it is rejected, because that is
+precisely the case where verification mattered. Constituent calls are spaced 1.5s apart, since
+twelve back-to-back is itself enough to trip the free tier.
+
+**Test-time HTTP cache** (`server/httpCache.js`). Production burns ~12 CoinGecko calls a day and
+sits well inside the free tier; what exhausts it is *iterating*. `VRYNN_HTTP_CACHE=1` replays
+outbound API calls from `.http-cache/` (gitignored, 1h TTL default, failures cached too so a 429
+replays instead of re-firing). **Off unless explicitly enabled** — a brief built from cached prices
+would be silently stale. The OpenRouter call is deliberately never cached, so evals always exercise
+a real generation.
+
+**Cost:** ~12 extra CoinGecko calls per daily run, one per sector. Within the ~333/day free tier,
+but the ceiling is now closer — a second daily run would not fit. Unverifiable (429, fetch failure)
+is treated as *not publishable*, so rate-limit exhaustion degrades to silence rather than to a
+guessed number.
+
+### Deferred: daily sector mover (spec + measured guard thresholds)
+Idea: a line in the daily brief — "biggest sector move today: X +12%, against a market up 0.5%" —
+rather than a page per winner (a page per day per category is thin, duplicative, and drifts back
+toward doorway pages). Costs one synthesis field and one template block; no new routes.
+
+**The mechanism is structurally biased toward broken data.** A max-ranker selects for outliers, and
+a bad aggregate produces a larger apparent move than any real one. Measured against the live
+catalogue on 2026-08-08: the top ten movers among 359 usable categories were
+`zodiac-themed +222%` ($1M cap), `remora-markets-tokenized-rstocks −100.00%` ($0M),
+`pump-fun-creator +98%` ($2M) — **18 of the top 20 had sub-$200M caps, and only 1 of 20 survived a
+$1B floor.** All passed the existing `validateCategory` guard, which was built to sanity-check a
+curated list, not to rank a catalogue.
+
+Required before this ships (the current guard alone is insufficient):
+- existing guard (non-null cap + 24h change, cap ≥ top-3 sum), **plus**
+- minimum cap floor — **$1B**, from the measurement above ($200M leaves 2/20, $1B leaves 1/20)
+- minimum constituent count, so a three-token "ecosystem" cannot win
+- cross-validate the winner against its own constituents at selection time: if the category claims
+  +30% while its top coins average +4%, the aggregate is broken — skip it
+- a floor on the move itself: if the day's biggest sector move is small, publish "no sector broke
+  out today" rather than manufacturing a story. Same discipline as "no clear catalyst".
+
+### Deferred: chain-ecosystem pages (Solana, BNB)
+Re-checked live 2026-08-09: `solana-ecosystem` still returns null cap/change/volume with an empty
+top-3 — unchanged, still blocked. `binance-smart-chain` is **also null**, so BNB would have failed
+validation identically; the only Binance categories carrying data are launchpad/airdrop promos, not
+a chain ecosystem. Broader: of 388 `*-ecosystem` categories only **48** carry both a cap and a 24h
+change (88% unusable), so CoinGecko's chain-ecosystem aggregation is broken almost everywhere and
+`base-native` working is the anomaly (note it is not named `*-ecosystem`).
+
+Consequence: computing an aggregate from constituents is not a one-off patch for Solana — it is the
+only viable path to *any* chain ecosystem page, which raises its value and confirms it is a real
+build rather than a config line.
+
+### Honesty debts paid (2026-08-09)
+Three things the site was stating, or failing to state, that its own standard forbids.
+
+1. **No as-of timestamp on any number.** Every tile was presented as if current while being a
+   snapshot from generation time — a visitor at 22:00 UTC saw prices up to 20 hours stale with
+   nothing indicating it. Every brief and sector page now carries a line under the tiles:
+   _"Market data as of HH:MM UTC on <date> — captured once daily when the brief is written, and
+   not updated afterwards."_ Sourced from the stored `as_of_utc`.
+2. **"Published each morning at 06:00 UTC" was not true.** Lazy generation fires whenever the
+   first visitor or crawler hits the page after midnight UTC — 2026-08-09's brief was written at
+   02:14. The specific time is removed everywhere; "each morning" is accurate regardless of which
+   path fires, and the as-of line now carries the precision.
+3. **The subscribe form promised delivery "at 06:00 UTC"** with no sending pipeline behind it.
+   Now "each morning" — a promise that can be kept once sending exists.
+
+**Why the brief numbers stay frozen (do not "fix" this):** the tiles are the evidence the prose
+reasons about. If they updated live while the text stayed fixed, a brief reading "the market fell
+2.7% alongside a CPI print" would sit beside a tile reading +0.4% — self-contradicting, and on
+dated archive pages simply wrong, since `/brief/2026-07-28` is a historical document. A live
+price strip is a *separate* surface if ever wanted: visually distinct, clearly labelled, never
+merged into the brief's frozen tiles.
+
+### Visual pass (2026-08-08)
+**Type split:** Newsreader (serif) for prose and headlines, IBM Plex Mono for every number and
+label, with `tabular-nums` so counting figures don't shift the layout. The split is the point —
+the reader distinguishes writing from data without being told, which mirrors the distinction the
+product is built on. Drop cap on the first paragraph.
+
+**Fonts are self-hosted** at `/fonts/*.woff2` (latin subset, 161KB total, `immutable`), not loaded
+from Google's CDN. Two reasons: the CDN costs two render-blocking external requests on a site whose
+strategy depends on being fast and crawlable, and it sends every visitor's IP to Google, which is a
+live UK/EU data-protection exposure. Self-hosting is faster and removes it.
+
+**Sparklines** (`<vr-spark>`, a dependency-free web component) on six tiles, fed from
+`getSparkSeries()` — real trailing values out of `daily_briefs`, not decorative. Hides itself below
+two data points, so it degrades cleanly on a new install.
+
+**Motion:** count-up on entry and staggered reveal on scroll, via IntersectionObserver.
+`prefers-reduced-motion` skips animation entirely (values render final, everything visible) rather
+than merely shortening it, and there is a no-IntersectionObserver fallback that shows everything.
+
+**Deliberately NOT taken — inline claim chips.** `synthesize` returns `drivers` as a separate array
+and never marks which sentence maps to which driver. Tagging inline would need either fuzzy-matching
+claims back to sentences (which will mis-tag — and a wrong "fact" chip on an honesty product attacks
+the actual thesis) or changing the output contract, i.e. touching the prompt the eval suite is built
+around. The classification is already rendered in "How we read this move". Placement question, not a
+missing feature.
+
+### Email capture (2026-08-08) — built to make the launch compound
+Inline form at the foot of every brief and sector page, after the read rather than as a popup
+before it. `POST /subscribe` (10/hour, stricter than `/api`), `GET /unsubscribe/:token`.
+Works without JavaScript via a plain form POST; JS only upgrades it to submit in place.
+**Unsubscribe token issued on the first row, not retrofitted** (UK data protection — cheap now,
+painful later), and the copy states the address is used only for the brief and never shared.
+Re-subscribing reuses the original token so old unsubscribe links never silently break.
+Responses are identical whether or not the address was already known — no enumeration.
+
+**No sending pipeline yet, deliberately.** This banks addresses so a launch that works does not
+evaporate; sending gets built when there is a list worth sending to. `getSubscriberStats()`
+reports total/active.
 
 ### Build 1 — Sector pages (2026-08-08)
 Twelve curated sectors at `/sector/:slug` (+ dated archive at `/sector/:slug/:date`), generated

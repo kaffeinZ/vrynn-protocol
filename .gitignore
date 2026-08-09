@@ -19,4 +19,4 @@ logs/
 
 # Internal
 CLAUDE.md
-withdraw-marginfi.mjs
+withdraw-marginfi.mjs.http-cache/

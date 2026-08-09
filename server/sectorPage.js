@@ -1,4 +1,5 @@
 import { SECTORS } from './sectors.js';
+import { SUBSCRIBE_BLOCK, FONT_CSS, MOTION_CSS, ENHANCE_JS } from './brief.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -43,6 +44,11 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
   const canonical = isLatest
     ? `https://vrynn.xyz/sector/${sector.slug}`
     : `https://vrynn.xyz/sector/${sector.slug}/${state.date}`;
+
+  // Frozen snapshot, same as the daily brief — say so rather than implying it is current.
+  const asOf = state.as_of_utc
+    ? `${new Date(state.as_of_utc).toISOString().slice(11, 16)} UTC`
+    : null;
 
   const title = `Why are ${sector.label} tokens ${dir} today? — ${prettyDay(state.date)} | Vrynn`;
   const desc  = `${sector.label} sector ${fmtPct(s.market_cap_change_24h)} over 24h versus `
@@ -127,6 +133,8 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
             --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35); }
   }
   * { box-sizing:border-box; }
+  ${FONT_CSS}
+  ${MOTION_CSS}
   body { margin:0; background:var(--bg); color:var(--fg); position:relative;
          font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   body::before { content:''; position:absolute; top:0; left:0; right:0; height:560px; z-index:-1;
@@ -186,6 +194,23 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
   .driver-tag--fact        { background:rgba(0,200,224,.15); color:#0093a8; }
   .driver-tag--coincidence { background:rgba(112,0,224,.15); color:#7a3fd0; }
   .driver-tag--unknown     { background:rgba(150,150,150,.15); color:var(--muted); }
+  .as-of { font-family:var(--mono); font-size:11.5px; color:var(--muted); letter-spacing:.02em;
+           margin:-22px 0 30px; line-height:1.5; }
+  .subscribe { margin-top:44px; padding:26px 24px; background:var(--card);
+               border:1px solid var(--line); border-radius:14px; }
+  .sub-title { font-size:20px; font-weight:700; letter-spacing:-.02em; margin:0 0 7px; }
+  .sub-copy  { color:var(--muted); font-size:14.5px; margin:0 0 16px; max-width:56ch; line-height:1.55; }
+  .sub-form  { display:flex; flex-wrap:wrap; gap:9px; margin-bottom:12px; }
+  .sub-form input { flex:1 1 240px; min-width:0; font:inherit; font-size:14.5px; padding:11px 14px;
+                    border-radius:9px; border:1px solid var(--line); background:var(--bg); color:var(--fg); }
+  .sub-form input:focus { outline:none; border-color:var(--a1); }
+  .sub-form button { font:inherit; font-size:14.5px; font-weight:650; color:#fff; border:0;
+                     padding:11px 22px; border-radius:9px; cursor:pointer;
+                     background:linear-gradient(90deg,var(--a1),var(--a2));
+                     box-shadow:0 6px 18px rgba(112,0,224,.24); }
+  .sub-form button:hover:not(:disabled) { filter:brightness(1.07); }
+  .sub-form button:disabled { opacity:.6; cursor:default; }
+  .sub-note  { color:var(--muted); font-size:12.5px; margin:0; line-height:1.55; }
   footer { margin-top:40px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:13px; }
 </style>
 </head>
@@ -202,14 +227,16 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
       ${synthesis?.explained ? `<span class="explained explained--${esc(synthesis.explained)}">${esc(EXPLAINED[synthesis.explained] ?? synthesis.explained)}</span>` : ''}
     </div>
 
-    <div class="tiles">
+    <div class="tiles reveal">
       ${tile(`${sector.label} market cap`, fmtUsd(s.market_cap_usd), `${fmtPct(s.market_cap_change_24h)} 24h`, dirClass(s.market_cap_change_24h))}
       ${tile('Whole market', fmtPct(mk.total_market_cap_change_24h_pct), '24h change', dirClass(mk.total_market_cap_change_24h_pct))}
       ${tile('Relative', rel ? rel.word : 'n/a', rel ? `${fmtPct(rel.diff)} vs market` : '', rel ? dirClass(rel.diff) : '')}
       ${tile('Sector volume', fmtUsd(s.volume_24h_usd), '24h traded')}
     </div>
 
-    <div class="body">
+    ${asOf ? `<p class="as-of">Sector data as of ${esc(asOf)} on ${esc(prettyDay(state.date))} — captured once daily when the read is written, and not updated afterwards.</p>` : ''}
+
+    <div class="body reveal">
       <div class="read">
         ${paragraphs}
       </div>
@@ -220,11 +247,14 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
       </aside>
     </div>
 
+    ${SUBSCRIBE_BLOCK}
+
     <footer>
       Vrynn reports what moved and what coincided with it. It does not assert causation and
       does not provide investment advice. Sector aggregates: CoinGecko. Macro: BLS, FRED, ForexFactory.
     </footer>
   </div>
+  ${ENHANCE_JS}
 </body>
 </html>`;
 }
