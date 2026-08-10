@@ -1,6 +1,6 @@
 import { buildAllSectorStates } from './sectors.js';
 import { renderSectorPage } from './sectorPage.js';
-import { synthesize } from './brief.js';
+import { synthesize, invalidateHomepageCache } from './brief.js';
 import { saveSectorBrief, getSectorDates, getDailyBrief } from './db.js';
 import { notifyAdmin } from './notify.js';
 
@@ -35,6 +35,9 @@ export async function runSectorBriefs(date = new Date().toISOString().slice(0, 1
       failed.push(`${sector.slug}: ${err.message}`);
     }
   }
+
+  // The homepage band reads from these rows, so it must be rebuilt once they change.
+  if (generated) invalidateHomepageCache();
 
   if (failed.length) await notifyAdmin(`sector synthesis failed for ${failed.length}`, failed.join('\n'));
   console.log(`[sectors] ${date}: generated ${generated}, guard-skipped ${skipped.length}, failed ${failed.length}`);

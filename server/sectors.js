@@ -100,6 +100,9 @@ export function buildSectorState(sector, cat, marketState) {
     sector: {
       slug:  sector.slug,
       label: sector.label,
+      // When the category data was actually fetched. The sector run happens after
+      // the brief, so inheriting the brief's as_of would misstate it by minutes.
+      fetched_utc: new Date().toISOString(),
       market_cap_usd:        cat.market_cap,
       market_cap_change_24h: +Number(cat.market_cap_change_24h).toFixed(2),
       volume_24h_usd:        cat.volume_24h ?? null,

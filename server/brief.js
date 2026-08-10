@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries } from './db.js';
+import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries, getSectorMovesForDate } from './db.js';
 import { fetchMacroCompleted } from './macro.js';
 import { SECTORS, fetchCategories, detectSectorSpike } from './sectors.js';
 import { cachedFetch } from './httpCache.js';
@@ -568,21 +568,26 @@ export const MOTION_CSS = `
 /**
  * Sits at the foot of the page, after the reader has finished and found it
  * useful — not a popup that interrupts before the value has been shown.
+ *
+ * The copy deliberately promises NOTHING it cannot currently do: there is no
+ * sending pipeline, so it collects interest rather than claiming delivery.
+ * Restore the delivery wording only when a sender actually exists.
  * Works without JavaScript (plain POST to a confirmation page); the inline
  * script only upgrades it to submit without navigating away.
  */
 export const SUBSCRIBE_BLOCK = `
     <section class="subscribe" id="subscribe">
-      <h2 class="sub-title">Get tomorrow's brief.</h2>
-      <p class="sub-copy">The same honest read, in your inbox each morning —
-        including the mornings it says there's no clear catalyst.</p>
+      <h2 class="sub-title">Be first when the email goes out.</h2>
+      <p class="sub-copy">The brief is published here every morning. The email edition
+        isn't running yet — leave your address and you'll be on it the day it starts.</p>
       <form class="sub-form" method="POST" action="/subscribe">
         <input type="email" name="email" required maxlength="254" autocomplete="email"
                placeholder="you@email.com" aria-label="Email address">
-        <button type="submit">Send it</button>
+        <button type="submit">Add me</button>
       </form>
-      <p class="sub-note" role="status">One email a day. No spam, no advice, unsubscribe from any of them.
-        Your address is used only to send the brief and is never shared.</p>
+      <p class="sub-note" role="status">Nothing sent until the email launches — then one a day, no more.
+        No spam, no advice, unsubscribe from any of them. Your address is used only for the
+        brief and is never shared.</p>
     </section>
     <script>
       (function () {
@@ -596,7 +601,7 @@ export const SUBSCRIBE_BLOCK = `
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ email: f.email.value, source: 'brief' })
           }).then(function (r) { return r.json(); }).then(function (d) {
-            if (d.ok) { f.style.display = 'none'; note.textContent = "You're on the list — tomorrow's brief lands in the morning."; }
+            if (d.ok) { f.style.display = 'none'; note.textContent = "You're on the list — you'll hear from us the day the email starts."; }
             else { btn.disabled = false; note.textContent = d.error || 'Could not save that. Try again.'; }
           }).catch(function () { f.submit(); });
         });
@@ -621,7 +626,7 @@ function briefSummary(row) {
 // ── renderBrief ──────────────────────────────────────────────────────────────
 
 export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
-  const { landing = false, honesty = null, spark = null } = opts;
+  const { landing = false, honesty = null, spark = null, sectorMoves = null } = opts;
   const mc  = signals.market ?? {};
   const btc = signals.assets?.BTC ?? {};
   const eth = signals.assets?.ETH ?? {};
@@ -831,6 +836,25 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
                     border:1px solid var(--line); border-radius:8px; padding:6px 12px;
                     transition:border-color .15s ease, transform .15s ease; }
   .sector-links a:hover { border-color:var(--muted); transform:translateY(-1px); }
+  /* Compact index band — same visual family as the main tiles, denser, so twelve
+     sectors read at a glance without pushing the brief below the fold. */
+  .sector-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  @media (min-width:560px) { .sector-grid { grid-template-columns:repeat(3,1fr); } }
+  @media (min-width:860px) { .sector-grid { grid-template-columns:repeat(6,1fr); } }
+  .sector-tile { display:block; padding:10px 12px; background:var(--card);
+                 border:1px solid var(--line); border-radius:9px;
+                 text-decoration:none; color:inherit; min-width:0;
+                 transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .sector-tile:hover { transform:translateY(-2px); box-shadow:var(--shadow); border-color:transparent; }
+  .sector-tile-label { display:block; font-family:var(--mono); font-size:10px; color:var(--muted);
+                       text-transform:uppercase; letter-spacing:.07em; white-space:nowrap;
+                       overflow:hidden; text-overflow:ellipsis; }
+  .sector-tile-value { display:block; font-family:var(--mono); font-size:15px; font-weight:500;
+                       font-variant-numeric:tabular-nums; margin-top:3px; }
+  .sector-tile-stale { display:block; font-family:var(--mono); font-size:9.5px; color:var(--muted);
+                       letter-spacing:.06em; margin-top:2px; }
+  .sector-asof { font-family:var(--mono); font-size:11px; color:var(--muted);
+                 margin:10px 0 0; line-height:1.5; }
   .track-record { margin-top:38px; padding-top:18px; border-top:1px solid var(--line);
                   font-size:13.5px; color:var(--muted); line-height:1.6; }
   .track-record strong { color:var(--fg); font-weight:700; }
@@ -980,10 +1004,37 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
       </div>
 
       <div class="sector-nav">
-        <div class="sector-nav-label">By sector</div>
-        <div class="sector-links">
-          ${SECTORS.map(s => `<a href="/sector/${esc(s.slug)}">${esc(s.label)}</a>`).join('')}
+        <div class="sector-nav-label">By sector · 24h</div>
+        ${sectorMoves?.length ? (() => {
+          // A tile can legitimately be older than the rest — a sector skipped by
+          // the guard falls back to its last valid read. Say which day it is from
+          // rather than letting it pass as today's.
+          const freshest = sectorMoves.map(x => x.date).sort().slice(-1)[0];
+          const stamp = sectorMoves.find(x => x.date === freshest && x.fetched)?.fetched;
+          const bandAsOf = stamp ? `${new Date(stamp).toISOString().slice(11, 16)} UTC` : null;
+          const shortDay = (d) => new Date(`${d}T00:00:00Z`)
+            .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+          return `
+        <div class="sector-grid">
+          ${SECTORS.map(sec => {
+            const m = sectorMoves.find(x => x.slug === sec.slug);
+            const chg = m?.change;
+            const cls = chg == null ? '' : chg >= 0 ? 'up' : 'down';
+            const stale = m && m.date !== freshest;
+            return `<a class="sector-tile" href="/sector/${esc(sec.slug)}">
+              <span class="sector-tile-label">${esc(sec.label)}</span>
+              <span class="sector-tile-value ${cls}">${chg == null ? '—' : esc(fmtPct(chg))}</span>
+              ${stale ? `<span class="sector-tile-stale">${esc(shortDay(m.date))}</span>` : ''}
+            </a>`;
+          }).join('')}
         </div>
+        ${bandAsOf ? `<p class="sector-asof">Sector moves as of ${esc(bandAsOf)} on ${esc(shortDay(freshest))}${
+          sectorMoves.some(x => x.date !== freshest)
+            ? ' — tiles showing an earlier date are that sector\'s last verified read' : ''}.</p>` : ''}`;
+        })() : `
+        <div class="sector-links">
+          ${SECTORS.map(sec => `<a href="/sector/${esc(sec.slug)}">${esc(sec.label)}</a>`).join('')}
+        </div>`}
       </div>
 
       ${honesty ? `
@@ -1193,6 +1244,13 @@ export function renderArchive(briefs) {
 // block on top. Both derive from one model call per day.
 let cache = { date: null, page: null, home: null };
 
+/** Drop the cached homepage so it re-renders on the next request.
+ *  Required because the homepage embeds the sector band, which is generated
+ *  AFTER the brief — without this the band stays a day behind for the whole day. */
+export function invalidateHomepageCache() {
+  cache = { ...cache, home: null };
+}
+
 /** Rebuild the synthesis object from a stored row, so any page can be
  *  re-rendered from data without another model call. */
 function synthesisFromRow(row) {
@@ -1226,7 +1284,7 @@ export async function getBriefHtml(date) {
   const signals   = await fetchSignals();
   const synthesis = await synthesize(signals);
   const recent    = getRecentBriefs(today, 5);
-  const html      = renderBrief(signals, synthesis, recent, { spark: getSparkSeries(today) });
+  const html      = renderBrief(signals, synthesis, recent, { spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) });
 
   if (synthesis) {
     saveDailyBrief({
@@ -1263,14 +1321,14 @@ export async function getHomepageHtml() {
   if (!row) {
     const signals   = await fetchSignals();
     const synthesis = await synthesize(signals);
-    return renderBrief(signals, synthesis, getRecentBriefs(today, 6), { landing: true, honesty, spark: getSparkSeries(today) });
+    return renderBrief(signals, synthesis, getRecentBriefs(today, 6), { landing: true, honesty, spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) });
   }
 
   const html = renderBrief(
     JSON.parse(row.signals_json),
     synthesisFromRow(row),
     getRecentBriefs(today, 6),
-    { landing: true, honesty, spark: getSparkSeries(today) },
+    { landing: true, honesty, spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) },
   );
   cache = { ...cache, date: today, home: html };
   return html;

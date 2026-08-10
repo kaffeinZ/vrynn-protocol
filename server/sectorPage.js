@@ -46,8 +46,9 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
     : `https://vrynn.xyz/sector/${sector.slug}/${state.date}`;
 
   // Frozen snapshot, same as the daily brief — say so rather than implying it is current.
-  const asOf = state.as_of_utc
-    ? `${new Date(state.as_of_utc).toISOString().slice(11, 16)} UTC`
+  const asOfSource = state.sector?.fetched_utc ?? state.as_of_utc;
+  const asOf = asOfSource
+    ? `${new Date(asOfSource).toISOString().slice(11, 16)} UTC`
     : null;
 
   const title = `Why are ${sector.label} tokens ${dir} today? — ${prettyDay(state.date)} | Vrynn`;

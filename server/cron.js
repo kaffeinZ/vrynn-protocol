@@ -8,14 +8,17 @@ const todayUtc = () => new Date().toISOString().slice(0, 10);
 async function generateFor(label) {
   const date = todayUtc();
   try {
-    await getBriefHtml();      // creates and persists today's row via the existing path
-    await getHomepageHtml();   // warm the homepage variant so no visitor pays for it
-    console.log(`[cron] ${label}: brief + homepage ready for ${date}`);
+    // Order matters. The brief must exist first (sectors reuse its market_state),
+    // and the homepage must be warmed LAST because it embeds the sector band —
+    // warming it before the sector run bakes in yesterday's sector data for the
+    // rest of the day, which is exactly what happened on 2026-08-10.
+    await getBriefHtml();      // creates and persists today's row
 
-    // Sectors run after the brief so they reuse the same day's market_state.
-    // A sector failure must not invalidate an already-published brief.
     try { await runSectorBriefs(date); }
     catch (err) { console.error(`[cron] ${label}: sector run failed:`, err.message); }
+
+    await getHomepageHtml();   // warm only once the sector band is current
+    console.log(`[cron] ${label}: brief + sectors + homepage ready for ${date}`);
   } catch (err) {
     console.error(`[cron] ${label}: generation failed for ${date}:`, err.message);
   }

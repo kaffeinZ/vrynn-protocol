@@ -215,8 +215,8 @@ app.post('/subscribe', subscribeLimiter, (req, res) => {
   if (wantsJson) return res.json({ ok: true });
   res.send(miniPage('You are on the list',
     `<h1>You're on the list</h1>
-     <p>Tomorrow's brief will land at 06:00 UTC — including the mornings it says there's no clear catalyst.</p>
-     <p>One email a day. Nothing else, ever. You can unsubscribe from any of them.</p>`));
+     <p>The email edition isn't running yet. You'll hear from us the day it starts — and nothing before then.</p>
+     <p>After that, one a day, nothing else, unsubscribe from any of them. In the meantime the brief is on the site every morning.</p>`));
 });
 
 app.get('/unsubscribe/:token', (req, res) => {

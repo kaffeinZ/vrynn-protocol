@@ -381,6 +381,30 @@ export function getSectorDates(slug, limit = 30) {
   `).all(slug, limit);
 }
 
+/** Sector moves as they stood on a given date — for the at-a-glance band.
+ *  Date-scoped on purpose: a dated brief showing today's sector moves would
+ *  contradict its own frozen tiles. Falls back to the most recent reads on or
+ *  before the date, so a day where a sector was guard-skipped still shows. */
+export function getSectorMovesForDate(date) {
+  return db.prepare(`
+    SELECT s.sector_slug, s.date, s.aggregate_json
+    FROM sector_briefs s
+    INNER JOIN (
+      SELECT sector_slug, MAX(date) AS d FROM sector_briefs
+      WHERE date <= ? GROUP BY sector_slug
+    ) g ON s.sector_slug = g.sector_slug AND s.date = g.d
+  `).all(date).map(r => {
+    let change = null, label = null, fetched = null;
+    try {
+      const a = JSON.parse(r.aggregate_json);
+      change  = a?.sector?.market_cap_change_24h ?? null;
+      label   = a?.sector?.label ?? null;
+      fetched = a?.sector?.fetched_utc ?? a?.as_of_utc ?? null;
+    } catch { /* unreadable row — the tile degrades to a plain link */ }
+    return { slug: r.sector_slug, label, change, date: r.date, fetched };
+  });
+}
+
 /** Latest row per sector — for the homepage sector grid. */
 export function getLatestSectorAll() {
   return db.prepare(`
