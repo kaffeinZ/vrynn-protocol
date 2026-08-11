@@ -446,6 +446,11 @@ export function saveDailyBrief({ date, signals, briefText, html, drivers, explai
          drivers ? JSON.stringify(drivers) : null, explained ?? null, headline ?? null);
 }
 
+/** The most recent brief strictly before `date` — served while today's is unpublished. */
+export function getPreviousBrief(date) {
+  return db.prepare(`SELECT * FROM daily_briefs WHERE date < ? ORDER BY date DESC LIMIT 1`).get(date) ?? null;
+}
+
 export function getDailyBrief(date) {
   return db.prepare(`SELECT * FROM daily_briefs WHERE date = ?`).get(date) ?? null;
 }

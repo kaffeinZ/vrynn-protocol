@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { saveDailyBrief, getDailyBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries, getSectorMovesForDate } from './db.js';
+import { saveDailyBrief, getDailyBrief, getPreviousBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries, getSectorMovesForDate } from './db.js';
 import { fetchMacroCompleted } from './macro.js';
 import { SECTORS, fetchCategories, detectSectorSpike } from './sectors.js';
 import { cachedFetch } from './httpCache.js';
@@ -256,9 +256,23 @@ export async function fetchSignals() {
   // Sector spike — null on almost every day, which is the intended output.
   // Any failure here degrades to null (silent) rather than blocking the brief.
   let sectorSpike = null;
+  let sectorSource = null;
   try {
+    const catsFetchedUtc = new Date().toISOString();
     const cats = await fetchCategories();
     sectorSpike = await detectSectorSpike(cats, g?.market_cap_change_percentage_24h_usd ?? null);
+
+    // Keep only the curated twelve (the full catalogue is ~350KB and would bloat
+    // every stored row). The sector run reuses this rather than fetching its own
+    // snapshot, so brief and sectors describe the same moment.
+    const wanted = new Set(SECTORS.map(x => x.cgId));
+    sectorSource = {
+      fetched_utc: catsFetchedUtc,
+      categories: cats.filter(c => wanted.has(c.id)).map(c => ({
+        id: c.id, market_cap: c.market_cap, market_cap_change_24h: c.market_cap_change_24h,
+        volume_24h: c.volume_24h, top_3_coins_id: c.top_3_coins_id ?? [],
+      })),
+    };
   } catch (err) {
     console.error('[spike] detection skipped:', err.message);
   }
@@ -301,6 +315,8 @@ export async function fetchSignals() {
     // null on quiet days. The prompt is explicit that null means say nothing —
     // not "no sector spiked", which would create a slot that wants filling.
     sector_spike: sectorSpike,
+    // The category snapshot the sector run reuses — one fetch, one timestamp.
+    sector_source: sectorSource,
     // Two lists, deliberately separate. `completed` prints carry real numbers and
     // may be referenced; `scheduled` events have no actual yet and can never
     // account for a move that already happened. Collapsing them reintroduces
@@ -1244,6 +1260,17 @@ export function renderArchive(briefs) {
 // block on top. Both derive from one model call per day.
 let cache = { date: null, page: null, home: null };
 
+// The cron publishes at 06:00 UTC. Before that hour, today's brief has not been
+// written yet — so the lazy path must NOT create it. On 2026-08-11 a request at
+// 01:30 generated the brief early; the cron then found one already stored, skipped
+// it, and built sectors from a 06:00 fetch. The page compared a 06:00 sector move
+// against a 01:30 market move and stated the difference as fact.
+//
+// Serving the previous brief before 06:00 is the honest answer: a morning note
+// does not exist until it is published.
+const PUBLISH_HOUR_UTC = 6;
+const beforePublishHour = () => new Date().getUTCHours() < PUBLISH_HOUR_UTC;
+
 /** Drop the cached homepage so it re-renders on the next request.
  *  Required because the homepage embeds the sector band, which is generated
  *  AFTER the brief — without this the band stays a day behind for the whole day. */
@@ -1281,6 +1308,12 @@ export async function getBriefHtml(date) {
     return saved.html;
   }
 
+  // Not published yet — hand back yesterday's rather than generating early.
+  if (beforePublishHour()) {
+    const prev = getPreviousBrief(today);
+    if (prev?.html) return prev.html;
+  }
+
   const signals   = await fetchSignals();
   const synthesis = await synthesize(signals);
   const recent    = getRecentBriefs(today, 5);
@@ -1309,6 +1342,10 @@ export async function getHomepageHtml() {
   if (cache.date === today && cache.home) return cache.home;
 
   let row = getDailyBrief(today);
+  if (!row && beforePublishHour()) {
+    // Show the last published brief until the cron writes today's.
+    row = getPreviousBrief(today);
+  }
   if (!row) {
     await getBriefHtml();          // generates and stores today's brief
     row = getDailyBrief(today);
@@ -1324,11 +1361,14 @@ export async function getHomepageHtml() {
     return renderBrief(signals, synthesis, getRecentBriefs(today, 6), { landing: true, honesty, spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) });
   }
 
+  // Use the row's own date throughout — before 06:00 this is yesterday's brief,
+  // and its sparklines, recent list and sector band must match it, not today.
+  const rowDate = row.date;
   const html = renderBrief(
     JSON.parse(row.signals_json),
     synthesisFromRow(row),
-    getRecentBriefs(today, 6),
-    { landing: true, honesty, spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) },
+    getRecentBriefs(rowDate, 6),
+    { landing: true, honesty, spark: getSparkSeries(rowDate), sectorMoves: getSectorMovesForDate(rowDate) },
   );
   cache = { ...cache, date: today, home: html };
   return html;

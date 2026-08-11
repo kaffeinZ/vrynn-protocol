@@ -100,9 +100,10 @@ export function buildSectorState(sector, cat, marketState) {
     sector: {
       slug:  sector.slug,
       label: sector.label,
-      // When the category data was actually fetched. The sector run happens after
-      // the brief, so inheriting the brief's as_of would misstate it by minutes.
-      fetched_utc: new Date().toISOString(),
+      // The moment the shared category snapshot was taken — not "now". The sector
+      // run happens minutes after the fetch, so stamping now would overstate how
+      // fresh the numbers are.
+      fetched_utc: marketState?.sector_source?.fetched_utc ?? marketState?.as_of_utc ?? new Date().toISOString(),
       market_cap_usd:        cat.market_cap,
       market_cap_change_24h: +Number(cat.market_cap_change_24h).toFixed(2),
       volume_24h_usd:        cat.volume_24h ?? null,
@@ -254,7 +255,12 @@ export async function detectSectorSpike(cats, marketChangePct) {
 
 /** Fetch, validate and build state for every curated sector. Rejects are reported. */
 export async function buildAllSectorStates(marketState) {
-  const cats = await fetchCategories();
+  // Prefer the snapshot the brief already took. Fetching again here would give
+  // the sector pages a different moment from the market figure they are compared
+  // against — which is precisely the 270-minute mismatch seen on 2026-08-11.
+  const reused = marketState?.sector_source?.categories;
+  const cats = Array.isArray(reused) && reused.length ? reused : await fetchCategories();
+  if (!reused?.length) console.warn('[sectors] no snapshot in market_state — fetching separately');
   const byId = new Map(cats.map(c => [c.id, c]));
   const built = [];
   const skipped = [];
