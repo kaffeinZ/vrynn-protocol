@@ -70,7 +70,57 @@ account layer, but it is no longer the product.
   4. ✅ Open interest tile (BTC + ETH from Coinalyze — replaces liquidations, no free aggregate source exists). Macro today tile (ForexFactory). Whale flows + unlocks deferred.
 - ✅ **P4.5 — Honesty hardening** (work order, 2026-08-08). News items now carry `published_utc`, stale >36h dropped, sorted newest-first — previously a 3-day-old headline could sit in today's `market_state` and be read as today's cause. Banned-phrase list extended (`on the back of`, `fuelled by`, `boosted by`, …) + verdict register banned (`bullish`/`bearish`/`oversold`…). Both worked examples added as few-shot. `btc_dominance_change_24h_pct` derived from yesterday's stored row. 30-day honesty track record rendered on the homepage. **06:00 UTC cron + boot catch-up** — auto-publish is real, so "published each morning" is now a true claim. Eval harness at `eval/run.js` with four fixtures mined from stored history.
 - 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
-- 💤 **P6 — Premium tier.** Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
+- 💤 **P6 — Premium tier** (see *Monetization outlook* below for the fuller, corrected plan). Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
+
+### Monetization outlook (drafted 2026-09-20 — an OUTLOOK, nothing scheduled)
+
+Source: `vrynn_monetization_plan.md` (external draft). Recorded here so the direction is not
+lost; it replaces the one-line P6 above. **Nothing below is in progress.** Each item has a
+prerequisite that does not exist yet, listed first, because the draft assumed several things
+that are not true of this codebase.
+
+**Corrections to the draft, checked against the repo on 2026-09-20:**
+- **There is no email delivery at all.** `subscribers` has 8 rows and `POST /subscribe` works,
+  but nothing sends — no SendGrid/Resend/SMTP anywhere in `server/`. The draft's "Free: daily
+  brief email (current offering)" is not current; it is the first thing to build, and the
+  premium tier cannot exist above a free tier that does not send.
+- **Stack is Node/Express/SQLite under pm2, not n8n, and not Python.** The brief is `node-cron`
+  inside the app. An API tier is an Express route + `api_keys` table in `vrynn.db`, not "FastAPI
+  + Redis" — a second runtime for one endpoint is exactly the "bolted onto a working path" the
+  guardrails forbid.
+- **Data sources are CoinGecko, Coinalyze, FRED, BLS, ForexFactory, RSS.** No DefiLlama.
+- **No analytics tag exists on any page** — only Cloudflare's edge count (3.06k/mo, ~70% bot).
+  "Repeat visitor rate: unknown" is right and is the gating metric for everything else.
+- **The 100 × $30 = $3K/month arithmetic does not survive the traffic.** ~900 humans/month at a
+  typical 1–3% free→paid conversion is 9–27 subscribers, $270–810/month. 100 paying subscribers
+  needs roughly 5–10k humans/month, i.e. 5–10× current traffic. Newsletter revenue is a
+  traffic problem first; the retainer model is the only one that can hit the target at today's
+  audience size.
+- **Honesty bar / FCA line.** "Early alerts", "signal feed", "sponsored trade alerts",
+  "featured trade sponsorships" are all on the wrong side of the guardrail at the top of this
+  file (facts and flagged correlations only, never what to do). A paid tier must be *more*
+  information, not advice: deeper data, sector detail, history, API access. Sponsored trades
+  are out regardless of price. Charging money also changes the regulatory posture — the free
+  brief is information; a paid "alert" is much closer to a financial promotion.
+- **API tier rebroadcasts vendor data.** The CoinGecko Demo key is for non-commercial use;
+  selling an endpoint that serves CoinGecko-derived figures needs a paid CoinGecko plan and
+  attribution, plus ToS clarity in writing before launch. Rugmeter scoring is our own
+  computation and is fine.
+
+**Sequenced, with prerequisites (numbers are the draft's, unverified):**
+
+| # | Step | Prerequisite | Draft's estimate |
+|---|---|---|---|
+| M0 | Analytics: one lightweight, cookie-free tag (Plausible/Umami-class, or GA4 if consent is handled) on `/`, `/brief/:date`, `/sector/:slug`. Read repeat-visitor % after 2–4 weeks. | none | 1 hour + 24h wait |
+| M1 | **Free daily email that actually sends** — transactional provider, one template rendered from the stored brief row, honest unsubscribe. Turns 8 rows into a list. | none | ~1 day |
+| M2 | Protocol retainers — outreach to Solana founders offering monitoring + weekly written brief. Starts as a spreadsheet + manual work; tech follows a closed client. | none technical; requires selling | outreach now, 2–4 weeks to close |
+| M3 | Premium tier (this IS P6) — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
+| M4 | API access — Express route, per-key rate limit, Stripe-issued keys. | paid CoinGecko plan + written ToS clarity; M3 live | ~1 week |
+| M5 | Community / sponsorships — Discord for readers. **No sponsored trades.** | M1 list to invite from | — |
+
+**Kill criteria from the draft, kept:** 0 premium sign-ups in the first 5 days → fix positioning
+or drop it; 0 response from 5–10 protocol outreaches → change the pitch or the target list;
+first channel to $1K/month gets 80% of the time.
 
 ### Cleanup Ledger
 _Record every removal here so nothing is silently orphaned._
