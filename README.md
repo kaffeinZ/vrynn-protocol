@@ -60,7 +60,7 @@ account layer, but it is no longer the product.
 
 - ✅ **P0 — Baseline back up.** Server rebuilt (better-sqlite3 for Node 24), live on :3001 behind Cloudflare.
 - ✅ **P1 — One brief page (keystone).** `server/brief.js` + route at `/brief/today`. Server-rendered HTML from CoinGecko `/global`, BTC/ETH/SOL, Fear & Greed → LLM synthesis (honesty bar) → real crawlable HTML. Verified: SSR ✅, synthesis ✅, honesty bar held on a no-catalyst day ("no clear catalyst is evident in today's inputs"). One model call per UTC day, cached in memory.
-- 🔨 **P2 — Prove indexing.** `/sitemap.xml` live 2026-08-08 (18 URLs, all verified 200, `application/xml`, honest per-URL `lastmod` from `created_at` — dated briefs immutable so theirs never advance). Fixes a live defect: `robots.txt` had been advertising a sitemap that 404'd. Internal crawl path already complete (`/` → `/brief` → all 16 dated pages, plus 5 onward links per brief via the rail). **Next: submit the sitemap in Search Console, then read the coverage report over days-to-weeks — a new domain with no authority will not get 16 thin dated pages indexed quickly, so slow uptake is expected, not a fault.**
+- ✅ **P2 — Prove indexing.** Sitemap submitted in Search Console under the apex property (done by 2026-09-20; coverage is Google's clock now — read the report, don't chase it). `/sitemap.xml` live 2026-08-08 (18 URLs, all verified 200, `application/xml`, honest per-URL `lastmod` from `created_at` — dated briefs immutable so theirs never advance). Fixes a live defect: `robots.txt` had been advertising a sitemap that 404'd. Internal crawl path already complete (`/` → `/brief` → all 16 dated pages, plus 5 onward links per brief via the rail). _(A new domain with no authority will not get thin dated pages indexed quickly, so slow uptake is expected, not a fault.)_
   _(earlier P2 work: `/brief/:date` permanent dated URLs saved to `daily_briefs`; `robots.txt` fixed; homepage serves today's brief, dashboard moved to `/app`; indexing requested 2026-07-24.)_
 - ✅ **P3 — Glance + archive.** Archive index at `/brief` done. Six stat tiles on brief page done (market cap, BTC, ETH, SOL, dominance, Fear & Greed — in `renderBrief` since P1). `drivers` transparency layer deferred to P4 — depends on structured JSON output from the redesigned synthesis prompt.
 - ✅ **P4 — Signal depth + synthesis redesign.**
@@ -281,6 +281,37 @@ the earlier www submission was doomed regardless because every URL in the sitema
 - **Consensus / forecast — DEFERRED.** Official sources publish what happened, not what was expected, so there is no "vs 3.1% expected" figure. Surprises are framed against the *previous* reading instead ("3.53%, down from 4.25% prior"), which stays on primary-source footing. The prompt explicitly forbids inventing a consensus, and `eval/snapshots/release.json` asserts against fabricated "vs expected" framing. Revisit via a ForexFactory scraper (fragile + ToS grey) or Trading Economics (verify US is on the free tier) only if it proves worth a paid tier.
 - **Stored HTML goes stale on template changes.** Briefs persist finished HTML, so any render change needs a backfill re-render pass. Hit three times so far. Fix is to store data only and render per request.
 
+### Publishing outage 2026-08-12 → 14 and the reliability fix (commit `c2f831e`, live since 2026-08-23)
+
+**Nothing published for three days while every component check reported healthy.** The
+pre-publish gate (`PUBLISH_HOUR_UTC`) and the cron both sat on the 06:00 boundary; a fraction of
+a second of timer drift gated the cron out of its own job, and the "success" log line printed
+regardless because it never checked that a row had been persisted. Two more bad days followed:
+08-15 a model failure blocked publication outright, and 08-16 a CoinGecko 429 published a brief
+with null market cap / BTC / ETH — and because the row existed, nothing retried, so the bad day
+was locked in.
+
+**Fix, in `server/brief.js` + `server/cron.js`:**
+- `getBriefHtml(date, { force })` — the cron IS the publisher, so under `force` it bypasses the
+  gate **and** the memory cache (a pre-06:00 visitor had rolled `cache.date` forward while
+  leaving yesterday's `page` in place, so the cron got stale HTML and published nothing). The DB
+  row stays authoritative even under `force` — a published brief is never overwritten.
+- `PUBLISH_HOUR_UTC` **6 → 7.** The gate and the cron must never share a boundary.
+- `cacheForDate()` — never spread the old cache object across a date change.
+- `hasCoreData()` — missing prose is a degraded publish; missing core data is **not a publish**.
+  No row is saved, the last good brief is served, admin is notified, the next run retries.
+- Model failure no longer blocks publication: tiles + an honest "written read unavailable" note
+  is a published brief; nothing is not. Admin notified.
+- Cron: three attempts five minutes apart, then **verify the row exists** before logging success;
+  alert if it does not.
+- Sector tiles without today's data show "no data today", not yesterday's figure — a stale
+  number in a band labelled 24H is not a weaker signal, it is the wrong one.
+
+**`scripts/check-published.sh`** (system crontab, 07:30 + 13:30 UTC → `/tmp/vrynn-published.log`)
+asks the only question that matters: does the *public site* show today's date? It runs outside
+the app on purpose — a check that dies with the process it is checking is not a check — and it
+hits the site, not the DB, so the whole chain (cron → process → nginx → Cloudflare) is exercised.
+
 ### Daily Log
 - **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
 - **2026-07-22** — AI model default → `deepseek/deepseek-v4-flash` (config.js:10, one swappable line). Built P1: `server/brief.js` + `/brief/today` route, server-rendered HTML, honesty prompt verified on a flat no-catalyst day. Existing dashboard/wallet/API untouched.
@@ -289,6 +320,9 @@ the earlier www submission was doomed regardless because every URL in the sitema
 - **2026-08-08 (b)** — Macro actuals addendum. BLS v1 needs **no key** (the addendum assumed a v2 key for `calculations`), so YoY is computed from raw index values instead — validated exactly against FRED: BLS `CUUR0000SA0` → 3.53% vs FRED `CPIAUCNS` pc1 → 3.53%. Found the PPI series the addendum left blank (`WPUFD4`) and verified all ten IDs against live responses. Caught a bug the design didn't anticipate: `DFEDTARU` is a *daily* series, so period-advance detection would have reported a Fed funds "release" every single day — added `onChangeOnly` so it fires only when the rate actually moves. `macro_state` pre-seeded (10 series) so day one reports nothing stale. New eval fixture `release.json` asserts the model cites the actual and never fabricates "vs expected"; suite is 5/5 green.
 - **2026-08-08** — Applied the 7-point honesty work order. Corrected four inferred identifiers before applying: project is ESM not CommonJS (`require` → `import`), table is `daily_briefs` not `briefs`, synthesis export is `synthesize` not `generateBrief`, and `decodeEntities` did not exist (extracted from the old inline replace chain). Eval fixtures mined from 15 stored rows: quiet=08-02, macro=07-30, crash=07-28, rally=07-31; `published_utc` backfilled into fixture news to match the new contract. Suite green — quiet fixture still returns `unexplained` with all-`unknown` drivers after every prompt edit, and no banned/verdict term appears in any of the four. One assertion corrected: "macro day must not be unexplained" was wrong, because scheduled-but-unreleased events genuinely cannot explain a move that already happened. All 15 P4-shaped rows re-rendered to pick up the template.
 - **2026-07-26** — Landing pass. Hero block added above the brief (states what Vrynn is + teaches the Fact/Timing/No driver vocabulary before the tags appear below). Layout widened to 1100px: tiles full width at an explicit 2→4 column grid (`auto-fit` was leaving an orphan 8th tile), prose capped at 700px beside a new right rail holding "How we read this move" + recent briefs. Archive aligned to the same container, hero and type scale; entries now a 2-up grid with an explained badge. **Bug fixed:** archive snippets were split on `/[.!?]/`, so every summary truncated at the first decimal ("market cap rose 0."). Now stores the synthesis `headline` (new `daily_briefs.headline` column) and falls back to a decimal-safe splitter for pre-existing rows.
+- **2026-08-12 → 16** — Publishing stopped for three days (gate raced the cron), then a model failure froze 08-15 and a null-data brief shipped 08-16. Reliability fix applied 08-14..16, external `check-published.sh` added to crontab 08-15. See the Publishing outage section above.
+- **2026-08-23** — Server restarted on the fixed code (pm2, 0 restarts since). Clean daily publish every day through 2026-09-20.
+- **2026-09-20** — Fix committed as `c2f831e` (had been running uncommitted for four weeks); `og-cache/` gitignored. Sitemap confirmed submitted in Search Console → P2 marked done. Next on the roadmap: P5 / P6 are parked; the standing debt is "store data, render per request" (stored HTML has gone stale on template changes three times).
 
 ---
 
