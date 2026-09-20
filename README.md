@@ -11,6 +11,27 @@ Vrynn is in active development and the product is still taking shape. Features, 
 > Living doc — flip the status marks and append to the log/ledger below.
 > Editing this file is documentation only; it cannot affect the running server.
 
+> ### ⏩ RESUME HERE — current state (update this block every session)
+> **Last touched:** 2026-09-20. **Everything on the roadmap is ✅ done or 💤 parked except one item.**
+>
+> **NEXT: M1 — make the free daily email actually send.** Spec is in the *Monetization outlook*
+> section below (search `M1 —`). Why now: the subscribe form has been an honest waitlist since
+> 08-09 ("nothing sent until the email launches"); the condition for building it — a list worth
+> sending to — is now met: 8 rows in `subscribers`, 4–6 of them strangers, sign-ups accelerating
+> (5 in the last 10 days). Nothing is broken; nobody was promised anything yet.
+>
+> **Before starting M1, you (Freddy) need to:** create a Resend account, verify `vrynn.xyz` there,
+> add its SPF/DKIM DNS records at Cloudflare, put `RESEND_API_KEY` in `.env`. Claude then builds
+> `server/mailer.js` + template first, cron hook last, so nothing sends before you've seen a test.
+>
+> **Also open, zero-code:** M0 analytics tag (repeat-visitor % is unknown and gates any paid tier);
+> M2 protocol-retainer outreach list (spreadsheet). **Watch:** `[sectors] <date>: generated N` in
+> pm2 logs should be back to 11–12/12 after the 09-20 CoinGecko-key fix; Telegram "sector guard
+> rejected" alerts should mostly stop.
+>
+> **How to check the site is healthy in 10 seconds:** `pm2 list` (vrynn-protocol online, ↺ low),
+> `tail -3 /tmp/vrynn-published.log` (OK lines with today's date), homepage shows today's date.
+
 **What Vrynn is (as of 2026-07-20):** a public crypto market-intelligence site.
 The core product is a daily, data-backed market brief — *what moved and what
 coincided with it* — written to a professional, honestly-caveated standard:
@@ -112,11 +133,34 @@ that are not true of this codebase.
 | # | Step | Prerequisite | Draft's estimate |
 |---|---|---|---|
 | M0 | Analytics: one lightweight, cookie-free tag (Plausible/Umami-class, or GA4 if consent is handled) on `/`, `/brief/:date`, `/sector/:slug`. Read repeat-visitor % after 2–4 weeks. | none | 1 hour + 24h wait |
-| M1 | **Free daily email that actually sends** — transactional provider, one template rendered from the stored brief row, honest unsubscribe. Turns 8 rows into a list. | none | ~1 day |
+| M1 | **⏳ NEXT — Free daily email that actually sends.** Spec below the table. | Resend account + DNS (Freddy) | ~1 day |
 | M2 | Protocol retainers — outreach to Solana founders offering monitoring + weekly written brief. Starts as a spreadsheet + manual work; tech follows a closed client. | none technical; requires selling | outreach now, 2–4 weeks to close |
 | M3 | Premium tier (this IS P6) — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
 | M4 | API access — Express route, per-key rate limit, Stripe-issued keys. | paid CoinGecko plan + written ToS clarity; M3 live | ~1 week |
 | M5 | Community / sponsorships — Discord for readers. **No sponsored trades.** | M1 list to invite from | — |
+
+**M1 spec (agreed 2026-09-20, not started):**
+1. **Provider: Resend.** Free tier 3k/month, 100/day — a once-a-day list stays inside it for a
+   long time. Send from `brief@vrynn.xyz`; requires domain verification (SPF + DKIM records at
+   Cloudflare) and `RESEND_API_KEY` in `.env`. Chosen over SendGrid for a simpler API and no
+   marketing-suite baggage.
+2. **`server/mailer.js`** — renders a plain, mobile-safe HTML email from the stored `daily_briefs`
+   row: headline, the written read, the six glance tiles, "read the full brief" link to
+   `/brief/:date`, and an unsubscribe link built from the row's existing `unsubscribe_token`
+   (`GET /unsubscribe/:token` already works). Reuses data only — no new fetches, no new model
+   call, so the email can never disagree with the page.
+3. **Cron hook, last.** After `[cron] … ready for <date>` succeeds, send to every `subscribers`
+   row with `unsubscribed_at IS NULL`. Send **only** when the brief has core data AND prose — a
+   degraded brief ("written read unavailable") is published on the site but not emailed. Persist
+   `last_sent_date` (new column or small table) so a pm2 restart or boot catch-up cannot
+   double-send. Failures go to `notifyAdmin`.
+4. **Copy change** in `SUBSCRIBE_BLOCK` (`server/brief.js`): drop "isn't running yet"; say one
+   email each morning, no advice, unsubscribe in every one. Do this in the same commit as the
+   hook — the copy must never run ahead of the pipeline again (that was the 08-09 debt).
+5. **Test path first:** a `node scripts/send-test-brief.mjs <email>` that renders yesterday's
+   row and sends to one address. Freddy reads it on a phone before the hook is wired.
+6. **Ledger:** record the new env var, file, column and script in the Cleanup Ledger conventions
+   and add a Daily Log line.
 
 **Kill criteria from the draft, kept:** 0 premium sign-ups in the first 5 days → fix positioning
 or drop it; 0 response from 5–10 protocol outreaches → change the pitch or the target list;
