@@ -145,6 +145,7 @@ const SPIKE_MAX_DIVERGENCE_FROM_CONSTITUENTS = 12; // pp; beyond this the aggreg
 // rejecting on a transient API failure would take out every sector at once.
 const UNVERIFIED_MOVE_CEILING = 5;      // percent
 const CONSTITUENT_CALL_SPACING_MS = 1500;
+const RATE_LIMIT_RETRY_MS = 30_000;
 
 /**
  * Cross-validate a category's 24h change against its own constituents.
@@ -190,9 +191,15 @@ export async function validateChangeAgainstConstituents(cgId, categoryChange, ma
 
 /** Constituents of a category, for the count and the cross-validation. */
 async function fetchCategoryConstituents(cgId) {
-  const res = await cachedFetch(
-    `${CG}/coins/markets?vs_currency=usd&category=${encodeURIComponent(cgId)}&per_page=50&price_change_percentage=24h`,
-  );
+  const url = `${CG}/coins/markets?vs_currency=usd&category=${encodeURIComponent(cgId)}&per_page=50&price_change_percentage=24h`;
+  let res = await cachedFetch(url);
+  // One 429 is a rate-limit window, not a verdict. Wait it out and try once more
+  // before declaring the sector unverifiable — a large move rejected on a
+  // transient 429 loses that page for the whole day.
+  if (res.status === 429) {
+    await new Promise(r => setTimeout(r, RATE_LIMIT_RETRY_MS));
+    res = await cachedFetch(url);
+  }
   if (!res.ok) throw new Error(`coingecko /coins/markets ${res.status}`);
   const rows = await res.json();
   return Array.isArray(rows) ? rows : [];
@@ -266,6 +273,12 @@ export async function buildAllSectorStates(marketState) {
   const skipped = [];
 
   for (const sector of SECTORS) {
+    // Space the constituent calls out — twelve back-to-back is enough to trip
+    // CoinGecko's rate limit. This sits at the TOP of the loop on purpose: it used
+    // to run only on the success path, so a run of rejections fired their fetches
+    // back-to-back and each 429 made the next one likelier.
+    await new Promise(r => setTimeout(r, CONSTITUENT_CALL_SPACING_MS));
+
     const cat = byId.get(sector.cgId);
     const check = await validateCategory(cat);
     if (!check.ok) {
@@ -296,10 +309,6 @@ export async function buildAllSectorStates(marketState) {
         continue;
       }
     }
-
-    // Space the constituent calls out — twelve back-to-back is enough to trip
-    // CoinGecko's free tier, which is what produced the false rejections above.
-    await new Promise(r => setTimeout(r, CONSTITUENT_CALL_SPACING_MS));
 
     built.push({ sector, state: buildSectorState(sector, cat, marketState) });
   }

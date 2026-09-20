@@ -29,6 +29,16 @@ if (ENABLED) {
 
 const keyFor = (url) => createHash('sha1').update(String(url)).digest('hex').slice(0, 20);
 
+/** CoinGecko Demo key (free, 30 calls/min). The keyless public endpoint shares a
+ *  rate pool and started 429-ing the sector constituent checks daily in Sept 2026
+ *  (5/12 sector pages on 2026-09-18). Same api.coingecko.com host — the key is
+ *  a header only; `pro-api.` is for paid plans. Read lazily so dotenv has run. */
+function withApiKey(url, opts) {
+  const key = process.env.COINGECKO_DEMO_KEY;
+  if (!key || !String(url).startsWith('https://api.coingecko.com/')) return opts;
+  return { ...opts, headers: { ...(opts?.headers ?? {}), 'x-cg-demo-api-key': key } };
+}
+
 /** Minimal Response-alike: only the surface this codebase actually uses. */
 function replay(entry) {
   return {
@@ -41,6 +51,7 @@ function replay(entry) {
 }
 
 export async function cachedFetch(url, opts) {
+  opts = withApiKey(url, opts);
   if (!ENABLED) return fetch(url, opts);
 
   const file = resolve(DIR, `${keyFor(url)}.json`);
