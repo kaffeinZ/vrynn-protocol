@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { saveDailyBrief, getDailyBrief, getPreviousBrief, getAllBriefs, getRecentBriefs, getHonestyStats, getSparkSeries, getSectorMovesForDate } from './db.js';
 import { fetchMacroCompleted } from './macro.js';
+import { notifyAdmin } from './notify.js';
 import { SECTORS, fetchCategories, detectSectorSpike } from './sectors.js';
 import { cachedFetch } from './httpCache.js';
 
@@ -867,6 +868,8 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
                        overflow:hidden; text-overflow:ellipsis; }
   .sector-tile-value { display:block; font-family:var(--mono); font-size:15px; font-weight:500;
                        font-variant-numeric:tabular-nums; margin-top:3px; }
+  .sector-tile--nodata { opacity:.55; }
+  .sector-tile--nodata .sector-tile-value { color:var(--muted); }
   .sector-tile-stale { display:block; font-family:var(--mono); font-size:9.5px; color:var(--muted);
                        letter-spacing:.06em; margin-top:2px; }
   .sector-asof { font-family:var(--mono); font-size:11px; color:var(--muted);
@@ -1036,17 +1039,26 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
             const m = sectorMoves.find(x => x.slug === sec.slug);
             const chg = m?.change;
             const cls = chg == null ? '' : chg >= 0 ? 'up' : 'down';
+            // A sector without TODAY's data shows nothing, not yesterday's number.
+            // A stale figure in a band labelled "24H" is not a weaker signal, it is
+            // the wrong one — and the date underneath is too easy to skim past.
             const stale = m && m.date !== freshest;
+            if (stale || chg == null) {
+              return `<a class="sector-tile sector-tile--nodata" href="/sector/${esc(sec.slug)}">
+              <span class="sector-tile-label">${esc(sec.label)}</span>
+              <span class="sector-tile-value">—</span>
+              <span class="sector-tile-stale">no data today</span>
+            </a>`;
+            }
             return `<a class="sector-tile" href="/sector/${esc(sec.slug)}">
               <span class="sector-tile-label">${esc(sec.label)}</span>
-              <span class="sector-tile-value ${cls}">${chg == null ? '—' : esc(fmtPct(chg))}</span>
-              ${stale ? `<span class="sector-tile-stale">${esc(shortDay(m.date))}</span>` : ''}
+              <span class="sector-tile-value ${cls}">${esc(fmtPct(chg))}</span>
             </a>`;
           }).join('')}
         </div>
         ${bandAsOf ? `<p class="sector-asof">Sector moves as of ${esc(bandAsOf)} on ${esc(shortDay(freshest))}${
           sectorMoves.some(x => x.date !== freshest)
-            ? ' — tiles showing an earlier date are that sector\'s last verified read' : ''}.</p>` : ''}`;
+            ? ' — sectors marked "no data today" could not be refreshed; yesterday\'s figure is not shown in a 24h band' : ''}.</p>` : ''}`;
         })() : `
         <div class="sector-links">
           ${SECTORS.map(sec => `<a href="/sector/${esc(sec.slug)}">${esc(sec.label)}</a>`).join('')}
@@ -1268,7 +1280,18 @@ let cache = { date: null, page: null, home: null };
 //
 // Serving the previous brief before 06:00 is the honest answer: a morning note
 // does not exist until it is published.
-const PUBLISH_HOUR_UTC = 6;
+// Deliberately one hour AFTER the 06:00 cron. Even with `force`, having the gate
+// boundary sit exactly on the cron's firing time is fragile — a second of drift
+// flips it. Separating them means the gate can never race the publisher again.
+const PUBLISH_HOUR_UTC = 7;
+
+/** The minimum a brief must have to be worth publishing. Sentiment alone is not a
+ *  market read — the headline figure and at least one major price must be real. */
+function hasCoreData(signals) {
+  return signals?.market?.total_market_cap_usd != null
+      && signals?.market?.total_market_cap_change_24h_pct != null
+      && signals?.assets?.BTC?.price_usd != null;
+}
 const beforePublishHour = () => new Date().getUTCHours() < PUBLISH_HOUR_UTC;
 
 /** Drop the cached homepage so it re-renders on the next request.
@@ -1276,6 +1299,14 @@ const beforePublishHour = () => new Date().getUTCHours() < PUBLISH_HOUR_UTC;
  *  AFTER the brief — without this the band stays a day behind for the whole day. */
 export function invalidateHomepageCache() {
   cache = { ...cache, home: null };
+}
+
+/** Move the cache to a new day. Never spread the old object across a date change —
+ *  `{ ...cache, date: today }` keeps the previous day's `page`/`home`, which is
+ *  exactly how a stale page outlived its own date and starved the publisher. */
+function cacheForDate(date, patch = {}) {
+  if (cache.date !== date) cache = { date, page: null, home: null };
+  cache = { ...cache, ...patch };
 }
 
 /** Rebuild the synthesis object from a stored row, so any page can be
@@ -1289,7 +1320,7 @@ function synthesisFromRow(row) {
   };
 }
 
-export async function getBriefHtml(date) {
+export async function getBriefHtml(date, { force = false } = {}) {
   const today  = new Date().toISOString().slice(0, 10);
   const target = date ?? today;
 
@@ -1299,17 +1330,28 @@ export async function getBriefHtml(date) {
     return row ? row.html : null;
   }
 
-  // Today — memory cache → DB → generate fresh
-  if (cache.date === today && cache.page) return cache.page;
+  // Today — memory cache → DB → generate fresh.
+  // `force` (the cron) skips the cache as well as the gate. Bypassing only the
+  // gate was not enough: on 2026-08-16 a pre-06:00 visitor rolled cache.date
+  // forward while leaving the PREVIOUS day's cache.page in place, so the cron
+  // hit this line, got yesterday's HTML back, and published nothing.
+  if (!force && cache.date === today && cache.page) return cache.page;
 
+  // The DB row is still authoritative even under `force` — if today's brief is
+  // already published, the cron must not overwrite it with a newer snapshot.
+  // Only the in-memory cache is bypassed, because that is what can be stale.
   const saved = getDailyBrief(today);
   if (saved) {
-    cache = { ...cache, date: today, page: saved.html };
+    cacheForDate(today, { page: saved.html });
     return saved.html;
   }
 
   // Not published yet — hand back yesterday's rather than generating early.
-  if (beforePublishHour()) {
+  // `force` is the cron: it IS the publisher, so it must never be gated. The gate
+  // and the cron sit on the same 06:00 boundary, so a fraction of a second of
+  // timer drift used to gate the cron out of its own job — which silently stopped
+  // publishing entirely from 2026-08-12 to 2026-08-14.
+  if (!force && beforePublishHour()) {
     const prev = getPreviousBrief(today);
     if (prev?.html) return prev.html;
   }
@@ -1319,17 +1361,38 @@ export async function getBriefHtml(date) {
   const recent    = getRecentBriefs(today, 5);
   const html      = renderBrief(signals, synthesis, recent, { spark: getSparkSeries(today), sectorMoves: getSectorMovesForDate(today) });
 
-  if (synthesis) {
-    saveDailyBrief({
-      date:     today,
-      signals,
-      briefText: synthesis.brief,
-      html,
-      drivers:   synthesis.drivers,
-      explained: synthesis.explained,
-      headline:  synthesis.headline,
-    });
-    cache = { date: today, page: html, home: null };
+  // Missing PROSE is a degraded publish. Missing CORE DATA is not a publish at all.
+  // On 2026-08-16 CoinGecko rate-limited the fetch and a brief went out with null
+  // market cap, null BTC and null ETH, headlined "Market data unavailable". Storing
+  // that is worse than storing nothing, because the row's existence also stops
+  // anything retrying — the bad day gets locked in.
+  if (!hasCoreData(signals)) {
+    await notifyAdmin(`brief NOT published for ${today} — core market data missing`,
+      `total_market_cap=${signals?.market?.total_market_cap_usd} ` +
+      `btc=${signals?.assets?.BTC?.price_usd}. Nothing saved, so the next run retries. ` +
+      'Usually CoinGecko rate limiting.');
+    const prev = getPreviousBrief(today);
+    return prev?.html ?? html;          // serve the last good brief; store nothing
+  }
+
+  // Data is sound — persist. A model failure must never stop publication; that is
+  // what froze the site on 2026-08-15. Tiles plus an honest "written read
+  // unavailable" note is a published brief; nothing is not.
+  saveDailyBrief({
+    date:     today,
+    signals,
+    briefText: synthesis?.brief    ?? null,
+    html,
+    drivers:   synthesis?.drivers  ?? null,
+    explained: synthesis?.explained ?? null,
+    headline:  synthesis?.headline ?? null,
+  });
+  cacheForDate(today, { page: html, home: null });
+
+  if (!synthesis) {
+    await notifyAdmin(`brief published WITHOUT a written read for ${today}`,
+      'synthesis returned null after every retry and the fallback model. ' +
+      'Tiles are live; the prose is missing. Re-run once the provider recovers.');
   }
 
   return html;
@@ -1370,6 +1433,6 @@ export async function getHomepageHtml() {
     getRecentBriefs(rowDate, 6),
     { landing: true, honesty, spark: getSparkSeries(rowDate), sectorMoves: getSectorMovesForDate(rowDate) },
   );
-  cache = { ...cache, date: today, home: html };
+  cacheForDate(today, { home: html });
   return html;
 }

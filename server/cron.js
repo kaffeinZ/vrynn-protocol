@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { getBriefHtml, getHomepageHtml } from './brief.js';
 import { getDailyBrief } from './db.js';
 import { runSectorBriefs } from './sectorRun.js';
+import { notifyAdmin } from './notify.js';
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
@@ -12,13 +13,31 @@ async function generateFor(label) {
     // and the homepage must be warmed LAST because it embeds the sector band —
     // warming it before the sector run bakes in yesterday's sector data for the
     // rest of the day, which is exactly what happened on 2026-08-10.
-    await getBriefHtml();      // creates and persists today's row
+    // Retry on transient data failures (rate limits, a provider blip) rather than
+    // losing the whole day to one bad minute.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await getBriefHtml(undefined, { force: true });
+      if (getDailyBrief(date)) break;
+      if (attempt < 3) {
+        console.warn(`[cron] ${label}: no brief after attempt ${attempt}; retrying in 5 min`);
+        await new Promise(r => setTimeout(r, 5 * 60_000));
+      }
+    }
 
     try { await runSectorBriefs(date); }
     catch (err) { console.error(`[cron] ${label}: sector run failed:`, err.message); }
 
     await getHomepageHtml();   // warm only once the sector band is current
-    console.log(`[cron] ${label}: brief + sectors + homepage ready for ${date}`);
+
+    // Verify rather than assume. The old success line printed even when the run
+    // had persisted nothing at all.
+    if (!getDailyBrief(date)) {
+      await notifyAdmin(`cron produced NO brief for ${date}`,
+        'getBriefHtml returned without persisting a row — publishing is stalled');
+      console.error(`[cron] ${label}: FAILED — no brief row for ${date}`);
+    } else {
+      console.log(`[cron] ${label}: brief + sectors + homepage ready for ${date}`);
+    }
   } catch (err) {
     console.error(`[cron] ${label}: generation failed for ${date}:`, err.message);
   }
