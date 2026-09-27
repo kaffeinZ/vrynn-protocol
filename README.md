@@ -12,25 +12,31 @@ Vrynn is in active development and the product is still taking shape. Features, 
 > Editing this file is documentation only; it cannot affect the running server.
 
 > ### ⏩ RESUME HERE — current state (update this block every session)
-> **Last touched:** 2026-09-20. **Everything on the roadmap is ✅ done or 💤 parked except one item.**
+> **Last touched:** 2026-09-27 (b). Everything on the roadmap is ✅ done or 💤 parked except the
+> monetization track, which now starts with a legal prerequisite.
 >
-> **NEXT: M1 — make the free daily email actually send.** Spec is in the *Monetization outlook*
-> section below (search `M1 —`). Why now: the subscribe form has been an honest waitlist since
-> 08-09 ("nothing sent until the email launches"); the condition for building it — a list worth
-> sending to — is now met: 8 rows in `subscribers`, 4–6 of them strangers, sign-ups accelerating
-> (5 in the last 10 days). Nothing is broken; nobody was promised anything yet.
+> **NEXT, in order:**
+> 1. ~~M0.5 — privacy notice~~ ✅ **done 2026-09-27**, live at `/privacy`.
+> 2. **M1 — make the free daily email send.** Needs Freddy: Resend account, `vrynn.xyz` verified
+>    there, SPF/DKIM at Cloudflare, `RESEND_API_KEY` in `.env`. Then `server/mailer.js` +
+>    template, cron hook LAST so nothing sends before a test email is read on a phone.
+> 3. **M0 — analytics.** Repeat-visitor % is still unknown and gates any paid tier. Pick a
+>    cookie-free tag (Plausible/Umami-class) — GA4 would add a PECR cookie banner and more
+>    privacy-notice surface for no benefit at this size.
+> 4. M2 protocol outreach (no code, just a target list). M3/M4/M5 parked.
 >
-> **Before starting M1, you (Freddy) need to:** create a Resend account, verify `vrynn.xyz` there,
-> add its SPF/DKIM DNS records at Cloudflare, put `RESEND_API_KEY` in `.env`. Claude then builds
-> `server/mailer.js` + template first, cron hook last, so nothing sends before you've seen a test.
+> **Why M1 matters now:** the subscribe form has been an honest waitlist since 08-09 ("nothing
+> sent until the email launches"). The list is growing on its own — **8 rows on 09-20, 14 on
+> 09-27** — and not one of them has ever received anything.
 >
-> **Also open, zero-code:** M0 analytics tag (repeat-visitor % is unknown and gates any paid tier);
-> M2 protocol-retainer outreach list (spreadsheet). **Watch:** `[sectors] <date>: generated N` in
-> pm2 logs should be back to 11–12/12 after the 09-20 CoinGecko-key fix; Telegram "sector guard
-> rejected" alerts should mostly stop.
+> **↯ Standing rule:** any change to what the site collects, loads, or sends means `/privacy`
+> is updated **in the same commit**. The trigger table lives under the M0.5 spec — read it before
+> shipping M0, M1, M3, M4 or M5.
 >
-> **How to check the site is healthy in 10 seconds:** `pm2 list` (vrynn-protocol online, ↺ low),
-> `tail -3 /tmp/vrynn-published.log` (OK lines with today's date), homepage shows today's date.
+> **Health check in 10 seconds:** `pm2 list` (vrynn-protocol online), `tail -3
+> /tmp/vrynn-published.log` (OK with today's date), homepage shows today's date,
+> `[sectors] <date>: generated N` in pm2 logs should read 11–12.
+
 
 **What Vrynn is (as of 2026-07-20):** a public crypto market-intelligence site.
 The core product is a daily, data-backed market brief — *what moved and what
@@ -132,12 +138,59 @@ that are not true of this codebase.
 
 | # | Step | Prerequisite | Draft's estimate |
 |---|---|---|---|
-| M0 | Analytics: one lightweight, cookie-free tag (Plausible/Umami-class, or GA4 if consent is handled) on `/`, `/brief/:date`, `/sector/:slug`. Read repeat-visitor % after 2–4 weeks. | none | 1 hour + 24h wait |
-| M1 | **⏳ NEXT — Free daily email that actually sends.** Spec below the table. | Resend account + DNS (Freddy) | ~1 day |
+| M0.5 | ✅ **DONE 2026-09-27 — Privacy notice** at `/privacy`. Required by UK GDPR the moment an address is stored, which is already happening. Spec below. | none | ~2 hours |
+| M0 | **↯ privacy page must be updated in the same commit.** Analytics: one lightweight, cookie-free tag (Plausible/Umami-class, or GA4 if consent is handled) on `/`, `/brief/:date`, `/sector/:slug`. Read repeat-visitor % after 2–4 weeks. | none | 1 hour + 24h wait |
+| M1 | **⏳ NEXT — Free daily email that actually sends. ↯ privacy page updated in the same commit (Resend named).** Spec below the table. | Resend account + DNS (Freddy) | ~1 day |
 | M2 | Protocol retainers — outreach to Solana founders offering monitoring + weekly written brief. Starts as a spreadsheet + manual work; tech follows a closed client. | none technical; requires selling | outreach now, 2–4 weeks to close |
-| M3 | Premium tier (this IS P6) — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
-| M4 | API access — Express route, per-key rate limit, Stripe-issued keys. | paid CoinGecko plan + written ToS clarity; M3 live | ~1 week |
-| M5 | Community / sponsorships — Discord for readers. **No sponsored trades.** | M1 list to invite from | — |
+| M3 | **↯ privacy page: Stripe, billing retention, lawful basis.** Premium tier (this IS P6) — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
+| M4 | **↯ privacy page: API usage logs.** API access — Express route, per-key rate limit, Stripe-issued keys. | paid CoinGecko plan + written ToS clarity; M3 live | ~1 week |
+| M5 | **↯ privacy page: Discord as processor.** Community / sponsorships — Discord for readers. **No sponsored trades.** | M1 list to invite from | — |
+
+**M0.5 spec (agreed 2026-09-27, not started).** The unsubscribe *link* is an email-footer item
+and correctly waits for M1 — it is point 2 of the M1 spec. The *notice* cannot wait, because
+collection is live and the list is growing (8 → 14 in the week to 09-27).
+1. **`/privacy`** — a plain page in the site's own voice, no boilerplate. **Operator named as
+   "Vrynn" with `privacy@vrynn.xyz` as the contact — no personal name, no company** (decided
+   2026-09-27: no company exists, the site is free, and a home address is not being published).
+   Revisit only if a company is formed or the ICO registration requires otherwise. Processors
+   confirmed: Cloudflare (CDN + inbound mail routing) and Hetzner, Germany (host); what is stored (email, timestamp, `source`, unsubscribe token — nothing
+   else, no tracking pixels, no profile); lawful basis **consent**; retention; the processors
+   (Resend once M1 lands, Cloudflare, the VPS host); the right to access/erase and the ICO
+   complaint route.
+2. **Linked from the footer of every page** and from one line under the subscribe form.
+3. **Evidence the consent:** store `consent_at` and the version of the wording shown. Backfill
+   the existing rows with their `created_at` and the 08-09 wording.
+4. **Unsubscribe = DELETE the row** (decided 2026-09-27). Not flagged, not archived — removed,
+   no trace on the host. Two consequences to handle in M1: (a) there is no suppression record,
+   so a re-added address cannot be recognised as someone who previously left; (b) the current
+   "re-subscribing reuses the original token so old unsubscribe links never break" behaviour
+   ends — a deleted row means a new token and a dead old link. Both accepted; the page says
+   "if you subscribe again later, you start fresh".
+5. **Check ICO registration** — most UK controllers owe the annual data-protection fee; the ICO
+   self-assessment settles it in minutes. Do this before M1 sends anything.
+6. **If the email ever promotes a paid tier**, US CAN-SPAM wants a physical postal address in
+   every message (2 of the first 8 subscribers were US `.edu`). Home address vs. virtual box is
+   Freddy's call, needed before M3, not before M1.
+
+**When `/privacy` must be updated — check this table before shipping any step below.**
+The page is a factual claim about what the site does. The moment the site does something else,
+the page is false, and a false privacy notice is worse than none. **Update it in the SAME commit
+as the change, never in a follow-up** — the 08-09 debt (copy promising 06:00 delivery with no
+sender behind it) is the same mistake in a different place.
+
+| Stage | What changes on the page |
+|---|---|
+| **M0 — analytics** | Page currently says *"no tracking pixels"*. A cookie-free tag (Plausible/Umami) = name the processor + one line on what it counts. **GA4 = cookies**: add a cookies section, a lawful basis for them, AND a consent banner (PECR) before the tag fires. This is the cheapest reason to stay cookie-free. |
+| **M1 — email sending** | Describe **double opt-in** (address stored unconfirmed, confirmation email, unconfirmed rows deleted after ~7 days). Name **Resend** as a processor (and its data region). Remove *"no email has ever been sent"*. State that the email carries a one-click unsubscribe. Confirm the retention line still matches what unsubscribe actually does in code. |
+| **M0.5 decision** | If unsubscribe **deletes** the row, say so. If it keeps a **suppression hash**, say that instead and explain why (so we never re-add someone who left). Do not leave it vague. |
+| **M3 — premium tier** | Payment processor (Stripe) named; card data never touches our server; billing records kept for tax (6 years in the UK) — a different retention period from the mailing list, and it must be stated separately. Consent is no longer the only lawful basis — contract enters. US CAN-SPAM postal address if emails promote the paid tier. |
+| **M4 — API** | Per-key usage logs = personal data if tied to an identifiable customer. Say what is logged and for how long. |
+| **M5 — Discord** | Discord becomes a processor for anyone who joins; link their policy. |
+| **Any new data source or embed** | Anything loading from a third-party domain in the visitor's browser (fonts, scripts, iframes, images) leaks the visitor's IP to that party and belongs on this page. Self-host instead where you can. |
+| **Host or CDN change** | Cloudflare and the VPS host are named by name. Move either and the page is wrong. |
+
+**Also update `Last updated` at the top whenever the page changes** — it is the only signal a
+returning reader has, and the page promises the date moves with it.
 
 **M1 spec (agreed 2026-09-20, not started):**
 1. **Provider: Resend.** Free tier 3k/month, 100/day — a once-a-day list stays inside it for a
@@ -149,8 +202,31 @@ that are not true of this codebase.
    `/brief/:date`, and an unsubscribe link built from the row's existing `unsubscribe_token`
    (`GET /unsubscribe/:token` already works). Reuses data only — no new fetches, no new model
    call, so the email can never disagree with the page.
+2b. **Double opt-in — the form saves an UNCONFIRMED row and nothing is mailed until the person
+   clicks a confirmation link.** Reasoning (2026-09-27): with hard delete there is no suppression
+   record, so a re-added address cannot be distinguished from a genuine re-subscribe. But that
+   gap already exists on FIRST-time signups — anyone can type someone else's address into a
+   public form — so a suppression list is the wrong tool (its real job is stopping bulk
+   re-imports, and there are no bulk imports here). Confirmed opt-in closes the whole class:
+   every address on the list has evidence the person holding that inbox asked for it. It also
+   catches typos. Shape: `confirmed_at` column (NULL = pending), a single-use confirm token,
+   `GET /confirm/:token`, and pending rows older than ~7 days deleted by the daily cron so
+   unconfirmed addresses do not accumulate.
+   **The rows that predate M1 are grandfathered** (14 as of 2026-09-27; decided 2026-09-27).
+   Their consent is already valid — UK GDPR/PECR require consent, not *confirmed* consent, and
+   they submitted a form with honest copy. So `confirmed_at` is backfilled from `created_at` and
+   they simply start receiving the brief. Double opt-in applies to everyone who signs up after
+   M1 ships.
+   **But their first brief carries a one-time reminder line at the top:** _"You signed up at
+   vrynn.xyz on <their date>. The email edition has now started — if you'd rather not receive it,
+   unsubscribe here."_ Needs a `welcomed_at` column (or equivalent) so it appears exactly once.
+   Reason it is not skipped: the oldest of these addresses waited seven weeks in silence, and the
+   sending domain will have **zero reputation** on day one. Mailing addresses that have forgotten
+   who you are is the fastest way to collect spam complaints, and that damage lands on every
+   future subscriber, not just these. The reminder buys recognition without costing a click.
+
 3. **Cron hook, last.** After `[cron] … ready for <date>` succeeds, send to every `subscribers`
-   row with `unsubscribed_at IS NULL`. Send **only** when the brief has core data AND prose — a
+   row with `unsubscribed_at IS NULL` **and `confirmed_at IS NOT NULL`**. Send **only** when the brief has core data AND prose — a
    degraded brief ("written read unavailable") is published on the site but not emailed. Persist
    `last_sent_date` (new column or small table) so a pm2 restart or boot catch-up cannot
    double-send. Failures go to `notifyAdmin`.
@@ -407,6 +483,8 @@ the app on purpose — a check that dies with the process it is checking is not 
 hits the site, not the DB, so the whole chain (cron → process → nginx → Cloudflare) is exercised.
 
 ### Daily Log
+- **2026-09-27 (b)** — **M0.5 done.** `/privacy` live: operator "Vrynn" + `privacy@vrynn.xyz` (no personal name, no company — decided), Cloudflare + Hetzner named, unsubscribe = hard delete. Contact address built on Cloudflare Email Routing → masked alias; two traps hit setting it up: custom addresses only appear after the domain is onboarded, and the rule's action defaults in a way that silently **dropped** three test mails before it was set to "Send to an email". Footer links on brief/archive/sector + a line under the subscribe form; deliberately NOT in `sitemap.xml`. **Sector pages serve stored HTML, so their footer link only appears after the next 06:00 regeneration — the "stored HTML goes stale" debt, hit for the 4th time.**
+- **2026-09-27** — CoinGecko key fix verified over a week: sector pages 5/9/9 before → 11,12,12,12,12,12,12 from 09-21. 09-26 published tiles-only (synthesis failed); `check-published.sh` caught it at 13:30 and 09-27 recovered unattended — both 08-16 guards working on a real failure. Subscribers 8 → 14. Added **M0.5 privacy notice** ahead of M1: collection is live, no `/privacy` page exists.
 - **2026-07-20** — Restored server after Node-24 / better-sqlite3 ABI break (~4h20m outage). Agreed pivot to a public daily market brief; wallet kept as account layer; roadmap added.
 - **2026-07-22** — AI model default → `deepseek/deepseek-v4-flash` (config.js:10, one swappable line). Built P1: `server/brief.js` + `/brief/today` route, server-rendered HTML, honesty prompt verified on a flat no-catalyst day. Existing dashboard/wallet/API untouched.
 - **2026-07-24** — P2/P3 core: `daily_briefs` DB table added; briefs saved on generation and served by date at `/brief/:date`; `robots.txt` fixed (was serving SPA index.html via Cloudflare managed append); indexing request submitted to Google Search Console.

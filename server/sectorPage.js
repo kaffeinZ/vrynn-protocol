@@ -253,6 +253,7 @@ export function renderSectorPage(sector, state, synthesis, { dates = [], isLates
     <footer>
       Vrynn reports what moved and what coincided with it. It does not assert causation and
       does not provide investment advice. Sector aggregates: CoinGecko. Macro: BLS, FRED, ForexFactory.
+      <br><a href="/privacy">Privacy</a>
     </footer>
   </div>
   ${ENHANCE_JS}

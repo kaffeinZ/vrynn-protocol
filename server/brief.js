@@ -1153,6 +1153,7 @@ export function renderBrief(signals, synthesis, recentBriefs = [], opts = {}) {
     <footer>
       Vrynn reports what moved and what coincided with it. It does not assert causation
       and does not provide investment advice. Data: CoinGecko, Alternative.me, Coinalyze, FRED, ForexFactory, CoinTelegraph, Decrypt.
+      <br><a href="/privacy">Privacy</a>
     </footer>
   </div>
   ${ENHANCE_JS}
@@ -1261,7 +1262,7 @@ export function renderArchive(briefs) {
     <div class="entries">
       ${rows || '<p style="color:var(--muted)">No briefs yet.</p>'}
     </div>
-    <footer>Vrynn reports facts and timing coincidences only. No investment advice.</footer>
+    <footer>Vrynn reports facts and timing coincidences only. No investment advice. <a href="/privacy">Privacy</a></footer>
   </div>
 </body>
 </html>`;

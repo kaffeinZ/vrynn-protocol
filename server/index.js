@@ -193,6 +193,108 @@ const miniPage = (title, body) => `<!doctype html>
 <p><a class="back" href="/">← Back to today's brief</a></p>
 </div></body></html>`;
 
+/**
+ * Privacy notice. A separate renderer rather than `miniPage`, which is a 560px
+ * one-paragraph confirmation card and hardcodes `noindex` — this page has
+ * headings and lists, and should be readable if someone searches for it.
+ *
+ * Deliberately NOT in sitemap.xml: crawlable through the footer links, but not
+ * advertised, because a boilerplate legal page is exactly the thin content a
+ * young domain does not want to push at Google.
+ *
+ * THIS PAGE IS A FACTUAL CLAIM ABOUT WHAT THE SITE DOES. It currently states
+ * there is no analytics and that no email has ever been sent. Both stop being
+ * true at M0 and M1 — see the privacy trigger table in README.md and update
+ * this text IN THE SAME COMMIT as the change, never in a follow-up.
+ */
+const PRIVACY_UPDATED = '27 September 2026';
+
+const privacyPage = () => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy | Vrynn</title>
+<meta name="description" content="What Vrynn stores about you, which is very little.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+<style>
+ :root{--bg:#fcfcfd;--fg:#0f1115;--muted:#5b6070;--line:#e6e7ec}
+ @media(prefers-color-scheme:dark){:root{--bg:#0b0c10;--fg:#eef0f4;--muted:#9aa0b0;--line:#23252d}}
+ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+ .w{max-width:680px;margin:0 auto;padding:56px 20px 72px}
+ .brand{font-weight:800;font-size:22px;letter-spacing:-.02em;background:linear-gradient(90deg,#00c8e0,#7000e0);
+        -webkit-background-clip:text;background-clip:text;color:transparent;text-decoration:none}
+ h1{font-size:30px;letter-spacing:-.02em;margin:30px 0 6px}
+ h2{font-size:18px;letter-spacing:-.01em;margin:34px 0 10px}
+ p,li{color:var(--muted);margin:0 0 14px}
+ ul{padding-left:20px;margin:0 0 14px}
+ li{margin:0 0 6px}
+ strong{color:var(--fg);font-weight:600}
+ .updated{font-size:14px;color:var(--muted);margin:0 0 6px}
+ a{color:inherit}
+ hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+ .back{color:var(--muted);font-size:14px;text-decoration:none}
+</style></head><body><div class="w">
+<a class="brand" href="/">Vrynn</a>
+<h1>Privacy</h1>
+<p class="updated">Last updated: ${PRIVACY_UPDATED}</p>
+<p>Vrynn is a free website that publishes a daily crypto market brief. This page explains what it
+stores about you, which is very little.</p>
+
+<h2>If you just read the site</h2>
+<p>Nothing is stored about you. There are no accounts, no tracking pixels, and no advertising.
+Cloudflare sits in front of the site and keeps standard security and traffic logs, as it does for
+any site it protects.</p>
+
+<h2>If you give us your email address</h2>
+<p>The subscribe form stores four things: <strong>your email address</strong>, <strong>the date you
+submitted it</strong>, <strong>which page you submitted it from</strong>, and <strong>a private
+token that powers your unsubscribe link</strong>. Nothing else. We do not ask for your name, we do
+not know who you are, and we do not build a profile of you.</p>
+<p><strong>Why we can do this:</strong> your consent, given by submitting the form. You can withdraw
+it at any time.</p>
+<p><strong>What it is used for:</strong> sending you the daily brief, once it launches. Nothing else.
+Your address is never sold, rented, shared, or used to advertise anything to you.</p>
+<p><strong>At the time of writing, no email has ever been sent.</strong> The subscribe form is a
+waiting list. When the email edition starts, every message will carry a one-click unsubscribe link.</p>
+<p><strong>How long it is kept:</strong> until you unsubscribe. Unsubscribing deletes your address
+from our database — it is not flagged or archived, it is removed. If you subscribe again later, you
+start fresh.</p>
+
+<h2>Who else can see it</h2>
+<ul>
+  <li><strong>Cloudflare</strong> — routes traffic to the site, and forwards mail sent to our contact address.</li>
+  <li><strong>Hetzner</strong> — hosts the server the site and its database run on, in Germany.</li>
+</ul>
+<p>That is the complete list. When the email edition launches, the provider that sends it will be
+named here before the first message goes out.</p>
+
+<h2>Your rights</h2>
+<p>You can ask us to:</p>
+<ul>
+  <li>tell you what we hold about you,</li>
+  <li>correct it,</li>
+  <li>delete it,</li>
+  <li>stop using it.</li>
+</ul>
+<p>Email <strong><a href="mailto:privacy@vrynn.xyz">privacy@vrynn.xyz</a></strong> and we will act
+within one month. There is no charge, and you do not have to explain why.</p>
+<p>If you are not happy with how we respond, you can complain to the UK Information Commissioner's
+Office at <a href="https://ico.org.uk" rel="noopener">ico.org.uk</a>.</p>
+
+<h2>Contact</h2>
+<p><strong><a href="mailto:privacy@vrynn.xyz">privacy@vrynn.xyz</a></strong> — for anything on this
+page, including deletion requests.</p>
+
+<h2>Changes</h2>
+<p>If what we collect changes, this page changes first, and the date at the top changes with it.</p>
+
+<hr>
+<a class="back" href="/">← Back to today's brief</a>
+</div></body></html>`;
+
+app.get('/privacy', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600').send(privacyPage());
+});
+
 app.post('/subscribe', subscribeLimiter, (req, res) => {
   const email = String(req.body?.email ?? '').trim();
   const wantsJson = (req.get('accept') || '').includes('application/json');
