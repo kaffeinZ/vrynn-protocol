@@ -12,33 +12,42 @@ Vrynn is in active development and the product is still taking shape. Features, 
 > Editing this file is documentation only; it cannot affect the running server.
 
 > ### ⏩ RESUME HERE — current state (update this block every session)
-> **Last touched:** 2026-09-27 (b). Everything on the roadmap is ✅ done or 💤 parked except the
-> monetization track, which now starts with a legal prerequisite.
+> **Last touched:** 2026-09-27. Site is healthy and publishing daily; nothing is broken.
 >
-> **NEXT, in order:**
-> 1. ~~M0.5 — privacy notice~~ ✅ **done 2026-09-27**, live at `/privacy`.
-> 2. **P7.1 — context on every number** (see *P7 — Brief depth*). Deliberately ahead of M1: it is
->    small, needs no new data, and launching the email edition with a visibly better brief is a far
->    stronger first impression on a list that has waited seven weeks.
-> 3. **M1 — make the free daily email send.** Needs Freddy: Resend account, `vrynn.xyz` verified
->    there, SPF/DKIM at Cloudflare, `RESEND_API_KEY` in `.env`. Then `server/mailer.js` +
->    template, cron hook LAST so nothing sends before a test email is read on a phone.
-> 4. **M0 — analytics.** Repeat-visitor % is still unknown and gates any paid tier. Pick a
->    cookie-free tag (Plausible/Umami-class) — GA4 would add a PECR cookie banner and more
->    privacy-notice surface for no benefit at this size.
-> 5. M2 protocol outreach (no code, just a target list). M3/M4/M5 parked.
+> **NEXT: P7.1 — context on every number.** See *P7 — Brief depth* below. No new data sources, no
+> new dependencies — ranked queries over `daily_briefs` and stored sector moves, so "DePIN +5.7%"
+> becomes "its largest move since 14 Aug, third straight day leading". Not yet scoped: which
+> comparisons are worth rendering, and the silence rule (render nothing when nothing is notable).
+> **That scoping is the first task of the next session.**
 >
-> **Why M1 matters now:** the subscribe form has been an honest waitlist since 08-09 ("nothing
-> sent until the email launches"). The list is growing on its own — **8 rows on 09-20, 14 on
-> 09-27** — and not one of them has ever received anything.
+> **Then, in order:** M1 (email sending — needs Freddy: Resend account, `send.vrynn.xyz` verified,
+> DNS, `RESEND_API_KEY` in `.env`) → M0 (cookie-free analytics) → M2 (protocol outreach, no code).
+> P7.2/P7.3/P7.4 and M3/M4/M5 are sequenced in their own sections.
 >
-> **↯ Standing rule:** any change to what the site collects, loads, or sends means `/privacy`
-> is updated **in the same commit**. The trigger table lives under the M0.5 spec — read it before
-> shipping M0, M1, M3, M4 or M5.
+> **Done on 2026-09-20/27, do not redo:**
+> - CoinGecko Demo key + 429 retry — sector pages back to 11–12/12 (were 5/9/9). Verified over a week.
+> - `/privacy` live, linked from every footer. Operator "Vrynn" + `privacy@vrynn.xyz`; **no personal
+>   name and no company — settled, do not reopen.** Unsubscribe = hard delete. Contact address runs
+>   on Cloudflare Email Routing → masked alias, tested working.
+> - Roadmap rewritten: P7 (product depth) added ahead of the monetization track; personalization
+>   split between free P7.4 (web) and paid M3 (email).
+>
+> **↯ Standing rule:** any change to what the site collects, loads, or sends means `/privacy` is
+> updated **in the same commit**. Trigger table is under the M0.5 spec — read it before shipping
+> M0, M1, M3, M4 or M5.
+>
+> **Known trap:** briefs and sector pages persist finished HTML, so template changes do not appear
+> on existing pages until the next 06:00 regeneration. Hit four times, most recently 09-27 (sector
+> footers). Verify after a template change; the standing fix is to store data only and render per
+> request.
+>
+> **Open, low priority:** confirm sector pages picked up the `/privacy` footer link after the
+> 2026-09-28 06:00 run.
 >
 > **Health check in 10 seconds:** `pm2 list` (vrynn-protocol online), `tail -3
-> /tmp/vrynn-published.log` (OK with today's date), homepage shows today's date,
-> `[sectors] <date>: generated N` in pm2 logs should read 11–12.
+> /tmp/vrynn-published.log` (OK with today's date), homepage shows today's date, and
+> `[sectors] <date>: generated N` in pm2 logs reads 11–12.
+
 
 
 **What Vrynn is (as of 2026-07-20):** a public crypto market-intelligence site.
