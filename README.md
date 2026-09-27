@@ -17,13 +17,16 @@ Vrynn is in active development and the product is still taking shape. Features, 
 >
 > **NEXT, in order:**
 > 1. ~~M0.5 — privacy notice~~ ✅ **done 2026-09-27**, live at `/privacy`.
-> 2. **M1 — make the free daily email send.** Needs Freddy: Resend account, `vrynn.xyz` verified
+> 2. **P7.1 — context on every number** (see *P7 — Brief depth*). Deliberately ahead of M1: it is
+>    small, needs no new data, and launching the email edition with a visibly better brief is a far
+>    stronger first impression on a list that has waited seven weeks.
+> 3. **M1 — make the free daily email send.** Needs Freddy: Resend account, `vrynn.xyz` verified
 >    there, SPF/DKIM at Cloudflare, `RESEND_API_KEY` in `.env`. Then `server/mailer.js` +
 >    template, cron hook LAST so nothing sends before a test email is read on a phone.
-> 3. **M0 — analytics.** Repeat-visitor % is still unknown and gates any paid tier. Pick a
+> 4. **M0 — analytics.** Repeat-visitor % is still unknown and gates any paid tier. Pick a
 >    cookie-free tag (Plausible/Umami-class) — GA4 would add a PECR cookie banner and more
 >    privacy-notice surface for no benefit at this size.
-> 4. M2 protocol outreach (no code, just a target list). M3/M4/M5 parked.
+> 5. M2 protocol outreach (no code, just a target list). M3/M4/M5 parked.
 >
 > **Why M1 matters now:** the subscribe form has been an honest waitlist since 08-09 ("nothing
 > sent until the email launches"). The list is growing on its own — **8 rows on 09-20, 14 on
@@ -99,6 +102,52 @@ account layer, but it is no longer the product.
 - 💤 **P5 — Personal layer.** Portfolio view = new wallet-holdings fetch (Helius DAS + existing price feeds); current risk code demoted to a panel or retired.
 - 💤 **P6 — Premium tier** (see *Monetization outlook* below for the fuller, corrected plan). Personalized/deeper brief + archive — the revenue surface the free brief funnels into.
 
+### P7 — Brief depth (added 2026-09-27; ⏳ P7.1 is NEXT)
+
+Nothing has made the brief itself better since P4.5 in August; the roadmap drifted into outage
+fixes, legal work and monetization. "The same brief, but you pay" is a weak premium pitch. This
+phase fixes the product before it is sold.
+
+**The under-used asset is our own archive.** Briefs have been stored since July and cross-validated
+sector moves since late August, and the brief references yesterday exactly once
+(`btc_dominance_change_24h_pct`). P7.1 and P7.2 add no new data sources at all — they are queries
+over rows we already hold.
+
+**Honesty bar applies unchanged.** Historical context is a *fact* ("largest move since 14 Aug"),
+which is allowed. It must never become a prediction or a verdict ("due for a reversal", "building
+momentum"). Every new number added here meets the same constituent cross-validation bar as the
+sector aggregates — on arrival, not after it burns us.
+
+- ⏳ **P7.1 — Context on every number.** *No new data, no new dependencies.* "DePIN +5.7%" is
+  commodity; "DePIN +5.7%, its largest move since 14 Aug and a third straight day leading" is not.
+  Needs: ranked lookups over `daily_briefs` + sector history, a helper that renders a comparison
+  only when one is genuinely notable (silence is the default — a slot that wants filling is how
+  bars get lowered), and the figures passed into `market_state` so the synthesis can use them
+  rather than inventing them. **Start here:** smallest, self-contained, and it is what makes the
+  first email worth opening.
+- **P7.2 — Sector rotation.** 7- and 30-day leaders and laggards, cap-weighted, from stored
+  validated moves. This is the one genuinely differentiated thing the site does: CoinGecko's own
+  sector figures are wrong often enough to be dangerous (RWA published −33.5% against constituents
+  at +0.36% on 2026-09-27) and our cross-validation already catches it — but readers cannot see
+  that work. Surface it. Depends on P7.1's query layer.
+- **P7.3 — New signals.** Each independently shippable, each must pass validation before it
+  renders, each is a separate commit:
+  1. **Spot ETF flows** — probably the most-read daily crypto number and entirely absent.
+  2. **Stablecoin supply change** — real money in or out. The `stablecoins` sector already carries
+     a `flowsRead: true` flag that nothing currently uses.
+  3. **Token unlocks** — scheduled and factual; forward-looking without being predictive. Deferred
+     in P4.
+  4. Whale flows — deferred in P4. Most work, most vendor-dependent, do last or not at all.
+- **P7.4 — Preference layer (free, web only).** Reader picks the sectors they care about; the page
+  leads with those. No account and no login — a cookie-free preference (URL/localStorage) so it
+  adds nothing to `/privacy` beyond a sentence. This is the free half of personalization and it is
+  what makes M3 a real product rather than a paywall. **Does not depend on M1.**
+
+**Personalization deliberately splits across two phases.** The web-side preference is P7.4 and is
+free. The *personalized email* — your chosen sectors, in your inbox, in the brief you already get —
+is the substance of **M3**, because it needs a subscriber row with preferences and a working
+sender, i.e. M1 first. Do not build the email half here.
+
 ### Monetization outlook (drafted 2026-09-20 — an OUTLOOK, nothing scheduled)
 
 Source: `vrynn_monetization_plan.md` (external draft). Recorded here so the direction is not
@@ -142,7 +191,7 @@ that are not true of this codebase.
 | M0 | **↯ privacy page must be updated in the same commit.** Analytics: one lightweight, cookie-free tag (Plausible/Umami-class, or GA4 if consent is handled) on `/`, `/brief/:date`, `/sector/:slug`. Read repeat-visitor % after 2–4 weeks. | none | 1 hour + 24h wait |
 | M1 | **⏳ NEXT — Free daily email that actually sends. ↯ privacy page updated in the same commit (Resend named).** Spec below the table. | Resend account + DNS (Freddy) | ~1 day |
 | M2 | Protocol retainers — outreach to Solana founders offering monitoring + weekly written brief. Starts as a spreadsheet + manual work; tech follows a closed client. | none technical; requires selling | outreach now, 2–4 weeks to close |
-| M3 | **↯ privacy page: Stripe, billing retention, lawful basis.** Premium tier (this IS P6) — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
+| M3 | **↯ privacy page: Stripe, billing retention, lawful basis.** Premium tier (this IS P6) — **substance = the personalized email** (P7.4's preferences, delivered), not "the same brief, earlier" — deeper brief/sector history/archive behind Stripe. Information, not alerts. | M0 shows repeat readers, M1 sending, honesty-bar review of every premium surface | 2–3 days |
 | M4 | **↯ privacy page: API usage logs.** API access — Express route, per-key rate limit, Stripe-issued keys. | paid CoinGecko plan + written ToS clarity; M3 live | ~1 week |
 | M5 | **↯ privacy page: Discord as processor.** Community / sponsorships — Discord for readers. **No sponsored trades.** | M1 list to invite from | — |
 
